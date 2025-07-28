@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { Button, Table, Spinner, Alert, Pagination } from "react-bootstrap"
 import { getValidReport } from "../api/project_report"
+import SideBar from "./sideBar"
 
 const LoadPage = () => {
   const [enabled, setEnabled] = useState(false)
@@ -58,7 +59,9 @@ const LoadPage = () => {
   }
 
   return (
-    <div className="container mt-5">
+    <>
+    <SideBar />
+      <div className="container mt-5">
       <h2 className="mb-4">Report Viewer</h2>
 
       <Button onClick={handleGetReport} variant="primary" disabled={isFetching}>
@@ -110,7 +113,9 @@ const LoadPage = () => {
 
       {paginatedReports?.length > 0 && renderPagination()}
 
-    </div>
+      </div>
+    </>
+
   )
 }
 
