@@ -99,7 +99,7 @@ const LoadPage = () => {
             <Button 
               onClick={handleLoadData} 
               variant="success" 
-              disabled={loadDataMutation.isPending}
+              disabled={loadDataMutation.isPending || !reports}
             >
               {loadDataMutation.isPending ? (
                 <>

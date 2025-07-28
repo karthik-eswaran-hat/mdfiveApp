@@ -13,3 +13,11 @@ export function loadTestData(){
         method:"post"
     })
 }
+
+export function getReportCombination(){
+    return service({
+      url:"api/reportSummary",
+      method:"get"
+    })
+}
+

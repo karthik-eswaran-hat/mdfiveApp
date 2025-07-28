@@ -1,11 +1,12 @@
 from flask import request, jsonify
 from db import get_db_connection
 from contextlib import contextmanager
+import psycopg2.extras
 
 @contextmanager
 def db_cursor():
     conn = get_db_connection()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
         yield cur
         conn.commit()
@@ -17,7 +18,6 @@ def db_cursor():
         conn.close()
 
 def register_routes(app):
-
     @app.route('/api/test', methods=['GET'])
     def test():
         try:
@@ -87,16 +87,20 @@ def register_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    @app.route('/api/report-summary', methods=['GET'])
+    @app.route('/api/reportSummary', methods=['GET'])
     def get_report_combination_summary():
-        query = "SELECT * FROM test_suite.report_combination_summary;"
+        query = "SELECT * FROM test_suite.report_combination_summary_app;"
         try:
             with db_cursor() as cur:
                 cur.execute(query)
                 rows = cur.fetchall()
+                result = [dict(row) for row in rows]
             return jsonify({
                 'success': True,
-                'data': rows
+                'data': result
             })
         except Exception as e:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
