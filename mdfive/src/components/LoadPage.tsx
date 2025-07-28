@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
-import { Button, Table, Spinner, Alert, Pagination } from "react-bootstrap"
+import { Button, Table, Spinner, Alert, Pagination, Row, Col } from "react-bootstrap"
 import { getValidReport } from "../api/project_report"
 import SideBar from "./sideBar"
 
@@ -21,7 +21,7 @@ const LoadPage = () => {
       const response = await getValidReport()
       return response.data.data
     },
-    enabled: enabled,
+    enabled: false,
   })
 
   const handleGetReport = () => {
@@ -60,60 +60,66 @@ const LoadPage = () => {
 
   return (
     <>
-    <SideBar />
-      <div className="container mt-5">
-      <h2 className="mb-4">Report Viewer</h2>
+      <Row>
+        <Col md={2}>
+          <SideBar />
+        </Col>
+        <Col>
+          <div className="container mt-5">
+          <h2 className="mb-4 d-flex justify-content-center">Report Viewer</h2>
 
-      <Button onClick={handleGetReport} variant="primary" disabled={isFetching}>
-        {isFetching ? <Spinner size="sm" animation="border" /> : "Get New Report"}
-      </Button>
-      {!isFetching && reports?.length > 0 && (
-        <div className="alert alert-success alert-dismissible fade show mt-3" role="alert">
-          Successfully fetched the new report
-          <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      )}
-    
-
-      {isError && (
-        <Alert variant="danger" className="mt-3">
-          Error: {error.message}
-        </Alert>
-      )}
-      <div className="mt-4">
-        <strong>Total Reports: {reports?.length || 0}</strong>
-      </div>
-
-      <Table striped bordered hover responsive className="mt-4">
-        <thead className="table-dark">
-          <tr>
-            <th>S.NO</th>
-            <th>Sample Report ID</th>
-            <th>Report Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {paginatedReports?.length > 0 ? (
-            paginatedReports.map((report, index) => (
-              <tr key={index}>
-                <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                <td>{report.sample_report_id}</td>
-                <td>{report.report_count}</td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="3" className="text-center">
-                {isFetching ? "Loading..." : "No reports available"}
-              </td>
-            </tr>
+          <Button onClick={handleGetReport} variant="primary" className="mb-3" disabled={isFetching}>
+            {isFetching ? <Spinner size="sm" animation="border" /> : "Get New Report"}
+          </Button>
+          {!isFetching && reports?.length > 0 && (
+            <div className="alert alert-success alert-dismissible fade show mt-3" role="alert">
+              Successfully fetched the new report
+              <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
           )}
-        </tbody>
-      </Table>
+        
 
-      {paginatedReports?.length > 0 && renderPagination()}
+          {isError && (
+            <Alert variant="danger" className="mt-3">
+              Error: {error.message}
+            </Alert>
+          )}
+          <div className="">
+            <strong>Total Reports: {reports?.length || 0}</strong>
+          </div>
 
-      </div>
+          <Table striped bordered hover responsive className="mt-4">
+            <thead className="table-dark">
+              <tr>
+                <th>S.NO</th>
+                <th>Sample Report ID</th>
+                <th>Report Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedReports?.length > 0 ? (
+                paginatedReports.map((report, index) => (
+                  <tr key={index}>
+                    <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td>{report.sample_report_id}</td>
+                    <td>{report.report_count}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3" className="text-center">
+                    {isFetching ? "Loading..." : "No reports available"}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </Table>
+
+          {paginatedReports?.length > 0 && renderPagination()}
+
+          </div>
+        </Col>
+      </Row>
     </>
 
   )

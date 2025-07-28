@@ -14,8 +14,8 @@ function SideBar() {
 
   return (
     <>
-      <Button variant="primary" onClick={handleShow}>
-        <CiMenuBurger />
+      <Button variant="primary" className='m-4' onClick={handleShow}>
+        <CiMenuBurger /> Menu
 
       </Button>
 
