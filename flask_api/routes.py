@@ -23,12 +23,12 @@ def register_routes(app):
       try:
           with db_cursor() as cur:
               query = """
-                  SELECT * FROM test_suite.get_valid_report_sample_counts(
+                  SELECT * FROM test_suite.get_valid_report_sample_counts_app(
                       (
                           SELECT MAX(
                               CAST(SUBSTRING(report_name FROM 'Report_(\\d+)_') AS INTEGER)
                           )
-                          FROM test_suite.json_report_test_data
+                          FROM test_suite.json_report_test_data_app
                           WHERE report_name ~ 'Report_\\d+_'
                       )
                   );
@@ -52,7 +52,7 @@ def register_routes(app):
             SELECT 
                 MAX(CAST(SUBSTRING(report_name FROM 'Report_(\\d+)_') AS INTEGER)) AS report_count,
                 MAX(report_name) FILTER (WHERE report_name ~ 'Report_\\d+_\\d+') AS sample_report_id
-            FROM test_suite.json_report_test_data
+            FROM test_suite.json_report_test_data_app
             WHERE report_name ~ 'Report_\\d+_';
         """
         try:
@@ -69,7 +69,17 @@ def register_routes(app):
 
     @app.route('/api/load-test-data', methods=['POST'])
     def load_test_data():
-        query = "SELECT NOW();"  # Placeholder query — replace with your actual logic
+        query = query = """
+                  SELECT * FROM test_suite.load_valid_sample_report_app(
+                      (
+                          SELECT MAX(
+                              CAST(SUBSTRING(report_name FROM 'Report_(\\d+)_') AS INTEGER)
+                          )
+                          FROM test_suite.json_report_test_data_app
+                          WHERE report_name ~ 'Report_\\d+_'
+                      )
+                  );
+              """
         try:
             with db_cursor() as cur:
                 cur.execute(query)
