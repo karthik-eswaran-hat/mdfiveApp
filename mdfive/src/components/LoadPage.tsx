@@ -64,41 +64,52 @@ const LoadPage = () => {
       <Button onClick={handleGetReport} variant="primary" disabled={isFetching}>
         {isFetching ? <Spinner size="sm" animation="border" /> : "Get New Report"}
       </Button>
+      {!isFetching && reports?.length > 0 && (
+        <div className="alert alert-success alert-dismissible fade show mt-3" role="alert">
+          Successfully fetched the new report
+          <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      )}
+    
 
       {isError && (
         <Alert variant="danger" className="mt-3">
           Error: {error.message}
         </Alert>
       )}
+      <div className="mt-4">
+        <strong>Total Reports: {reports?.length || 0}</strong>
+      </div>
 
-      {paginatedReports?.length > 0 && (
-        <>
-          <div className="mt-4">
-            <strong>Total Reports: {reports.length}</strong>
-          </div>
-
-          <Table striped bordered hover responsive className="mt-4">
-            <thead className="table-dark">
-              <tr>
-                <th>S.NO</th>
-                <th>Sample Report ID</th>
-                <th>Report Count</th>
+      <Table striped bordered hover responsive className="mt-4">
+        <thead className="table-dark">
+          <tr>
+            <th>S.NO</th>
+            <th>Sample Report ID</th>
+            <th>Report Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paginatedReports?.length > 0 ? (
+            paginatedReports.map((report, index) => (
+              <tr key={index}>
+                <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                <td>{report.sample_report_id}</td>
+                <td>{report.report_count}</td>
               </tr>
-            </thead>
-            <tbody>
-              {paginatedReports.map((report, index) => (
-                <tr key={index}>
-                  <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td>{report.sample_report_id}</td>
-                  <td>{report.report_count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="3" className="text-center">
+                {isFetching ? "Loading..." : "No reports available"}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </Table>
 
-          {renderPagination()}
-        </>
-      )}
+      {paginatedReports?.length > 0 && renderPagination()}
+
     </div>
   )
 }
