@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query"
-import { getUser } from "../api/project_report"
+import { getValidReport } from "../api/project_report"
 
 const LoadPage = () => {
 
-  const { data } = useQuery ({
+  const { getReport} = useQuery ({
     queryKey: ['user'],
-    queryFn: () => getUser()
+    queryFn: () => getValidReport()
   })
   
 
