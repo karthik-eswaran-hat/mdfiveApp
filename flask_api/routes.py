@@ -37,7 +37,7 @@ def register_routes(app):
               rows = cur.fetchall()
           return jsonify({
               "success": True,
-              "datakar": rows
+              "data": rows
           })
       except Exception as e:
           return jsonify({
