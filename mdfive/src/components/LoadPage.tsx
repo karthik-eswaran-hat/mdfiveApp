@@ -84,7 +84,7 @@ const LoadPage = () => {
   return (
     <>
     <Row>
-      <Col md={1}>
+      <Col md={2}>
         <SideBar />
       </Col>
       <Col>
