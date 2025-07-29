@@ -26,7 +26,7 @@ function SideBar() {
         <Offcanvas.Body>
           <Nav className="flex-column">
             <Nav.Link as={Link} to="/dashboard" onClick={handleClose}>Dashboard</Nav.Link>
-            <Nav.Link as={Link} to="/" onClick={handleClose}>Reports</Nav.Link>
+            <Nav.Link as={Link} to="/" onClick={handleClose}>Reports Viewer</Nav.Link>
             <Nav.Link as={Link} to="/settings" onClick={handleClose}>Settings</Nav.Link>
             <Nav.Link as={Link} to="/support" onClick={handleClose}>Support</Nav.Link>
           </Nav>
