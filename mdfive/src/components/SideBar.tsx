@@ -29,6 +29,7 @@ function SideBar() {
             <Nav.Link as={Link} to="/" onClick={handleClose}>Reports Viewer</Nav.Link>
             <Nav.Link as={Link} to="/settings" onClick={handleClose}>Settings</Nav.Link>
             <Nav.Link as={Link} to="/support" onClick={handleClose}>Support</Nav.Link>
+            <Nav.Link as={Link} to="/process-reports" onClick={handleClose}>Process Reports</Nav.Link>
           </Nav>
         </Offcanvas.Body>
       </Offcanvas>
