@@ -227,6 +227,51 @@ def get_all_reports():
             'message': str(e),
             'data': []
         }), 500
+@app.route('/api/process-all-reports', methods=['POST'])
+def process_all_reports():
+    try:
+        user_id = 181
+        org_id = 175
+        company_id = 175
+
+        # Get distinct report names you want to process
+        query = """
+        SELECT DISTINCT report_name
+        FROM test_suite.json_report_test_data
+        ORDER BY report_name DESC
+        LIMIT 50
+        """
+        report_names = select_all(query)  # Returns list of tuples [('Report_1366_latest',), ...]
+        
+        processed = []
+        failed = []
+
+        for (report_name,) in report_names:
+            try:
+                json_data = fetch_json_from_db(report_name)
+                if not json_data:
+                    failed.append({'report_name': report_name, 'error': 'No data found'})
+                    continue
+                
+                report_id = insert_report(json_data, user_id, org_id, company_id)
+                processed.append({'report_name': report_name, 'report_id': report_id})
+            except Exception as e:
+                failed.append({'report_name': report_name, 'error': str(e)})
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Processed {len(processed)} reports with {len(failed)} failures',
+            'data': {
+                'processed': processed,
+                'failed': failed
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 @app.route('/api/reportSummary', methods=['GET'])
 def get_report_summary():
