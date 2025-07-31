@@ -41,7 +41,7 @@ function SideBar() {
         </Nav.Item>
         
         <Nav.Item>
-          <Nav.Link eventKey="projects" as={Link} to="/dashboard">
+          <Nav.Link eventKey="projects" as={Link} to="/processed_reports">
             📁 Projects
           </Nav.Link>
         </Nav.Item>
