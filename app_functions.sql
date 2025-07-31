@@ -154,7 +154,7 @@ BEGIN
 
     IF NOT EXISTS (
         SELECT 1
-        FROM test_suite.json_report_test_data
+        FROM test_suite.json_report_test_data_app
         WHERE user_input_data_md5 = json_md5
     ) THEN
         INSERT INTO test_suite.json_report_test_data_app (
@@ -222,3 +222,67 @@ GROUP BY
         CASE WHEN pr.is_od_fresh = 1 THEN 'OD Fresh' END
     ))
 ORDER BY report_count DESC;
+
+
+
+CREATE OR REPLACE FUNCTION systemisers.compare_flattened_json_by_report_id(
+    p_report_id_1 INT,
+    p_report_id_2 INT,
+    p_project_report_stage_id_1 INT DEFAULT NULL,
+    p_project_report_stage_id_2 INT DEFAULT NULL
+)
+RETURNS TABLE (
+    diff_key_path TEXT,
+    value_1 TEXT,
+    value_2 TEXT
+) AS $$
+BEGIN
+/*
+  SELECT * FROM systemisers.compare_flattened_json_by_report_id(<first_report_id>, <second_report_id>, <first_report_stage_id> optional, <second_report_stage_id> optional);
+  
+  SELECT * FROM systemisers.compare_flattened_json_by_report_id(190, 188);
+
+  SELECT * FROM systemisers.compare_flattened_json_by_report_id(173, 173, 926, 863);
+
+*/
+    RETURN QUERY
+    WITH
+    json_1 AS (
+        SELECT report_json
+        FROM systemisers.project_report_stages
+        WHERE report_id = p_report_id_1
+          AND id = COALESCE(p_project_report_stage_id_1, id)
+          AND report_json IS NOT NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+    ),
+    json_2 AS (
+        SELECT report_json
+        FROM systemisers.project_report_stages
+        WHERE report_id = p_report_id_2
+          AND id = COALESCE(p_project_report_stage_id_2, id)
+          AND report_json IS NOT NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+    ),
+    flat_1 AS (
+        SELECT key_path AS kp, value AS value_1
+        FROM systemisers.flatten_json_full((SELECT report_json FROM json_1))
+    ),
+    flat_2 AS (
+        SELECT key_path AS kp, value AS value_2
+        FROM systemisers.flatten_json_full((SELECT report_json FROM json_2))
+    ),
+    merged AS (
+        SELECT
+            COALESCE(f1.kp, f2.kp) AS diff_key_path,
+            f1.value_1,
+            f2.value_2
+        FROM flat_1 f1
+        FULL OUTER JOIN flat_2 f2 ON f1.kp = f2.kp
+    )
+    SELECT *
+    FROM merged
+    WHERE merged.value_1 IS DISTINCT FROM merged.value_2;
+END;
+$$ LANGUAGE plpgsql;
