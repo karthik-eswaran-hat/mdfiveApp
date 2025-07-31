@@ -47,14 +47,14 @@ function SideBar() {
         </Nav.Item>
         
         <Nav.Item>
-          <Nav.Link eventKey="settings" as={Link} to="/dashboard">
-            ⚙️ Settings
+          <Nav.Link eventKey="settings" as={Link} to="/ReportComparison">
+            📈 Report Comparison
           </Nav.Link>
         </Nav.Item>
         
         <Nav.Item>
           <Nav.Link eventKey="reports" as={Link} to="/dashboard">
-            📈 Reports
+           ⚙️  Reports
           </Nav.Link>
         </Nav.Item>
         

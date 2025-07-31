@@ -21,3 +21,11 @@ export function getReportCombination(){
     })
 }
 
+export function compareReport(reportId1 :number, reportId2 :number) {
+  return service({
+    url: "api/reportComparison",
+    method: "get",
+    params: { report_id_1: reportId1, report_id_2: reportId2 },
+  });
+}
+
