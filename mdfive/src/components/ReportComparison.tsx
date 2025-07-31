@@ -7,6 +7,8 @@ import { useState } from "react";
 const ReportComparison = () => {
   const [reportId1, setReportId1] = useState<number>();
   const [reportId2, setReportId2] = useState<number>();
+  const [projectReportStageId1, setProjectReportStageId1] = useState<number>();
+  const [projectReportStageId2, setProjectReportStageId2] = useState<number>();
   const [submittedIds, setSubmittedIds] = useState(null);
 
   const {
@@ -14,18 +16,27 @@ const ReportComparison = () => {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ["reportComparison", reportId1, reportId2],
+    queryKey: ["reportComparison", reportId1, reportId2, projectReportStageId1, projectReportStageId2],
     queryFn: async () => {
-      const response = await compareReport(reportId1, reportId2);
+      const response = await compareReport(reportId1, reportId2, projectReportStageId1, projectReportStageId2);
       return response.data.data;
     },
     enabled: false,
   });
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!reportId1 || !reportId2) return;
-    setSubmittedIds({ reportId1, reportId2 });
+    setSubmittedIds({ reportId1, reportId2, projectReportStageId1, projectReportStageId2 });
     refetch();
+  };
+
+  const handleReset = () => {
+    setReportId1(undefined);
+    setReportId2(undefined);
+    setProjectReportStageId1(undefined);
+    setProjectReportStageId2(undefined);
+    setSubmittedIds(null);
   };
 
   return (
@@ -42,30 +53,73 @@ const ReportComparison = () => {
             </Card.Header>
             <Card.Body>
               <Form onSubmit={handleSubmit}>
-                <Form.Group className="mb-3" controlId="reportId1">
-                  <Form.Label>Report ID 1</Form.Label>
-                  <Form.Control
-                    type="number"
-                    value={reportId1}
-                    onChange={(e) => setReportId1(Number(e.target.value))}
-                    placeholder="Enter report id 1"
-                    required
-                  />
-                </Form.Group>
+                
+                {/* Row for Report 1 & Stage 1 */}
+                <Row className="mb-3">
+                  <Col md={6}>
+                    <Form.Group controlId="reportId1">
+                      <Form.Label>
+                        Report ID 1 <span className="text-danger">*</span>
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        value={reportId1 ?? ""}
+                        onChange={(e) => setReportId1(Number(e.target.value))}
+                        placeholder="Enter report id 1"
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group controlId="projectReportStageId1">
+                      <Form.Label>Stage ID 1</Form.Label>
+                      <Form.Control
+                        type="number"
+                        value={projectReportStageId1 ?? ""}
+                        onChange={(e) => setProjectReportStageId1(Number(e.target.value))}
+                        placeholder="Enter stage id 1"
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
 
-                <Form.Group className="mb-3" controlId="reportId2">
-                  <Form.Label>Report ID 2</Form.Label>
-                  <Form.Control
-                    type="number"
-                    value={reportId2}
-                    onChange={(e) => setReportId2(Number(e.target.value))}
-                    placeholder="Enter report id 2"
-                    required
-                  />
-                </Form.Group>
-                <Button variant="primary" type="submit" disabled={isFetching}>
-                  {isFetching ? "Loading..." : "Compare Reports"}
-                </Button>
+                {/* Row for Report 2 & Stage 2 */}
+                <Row className="mb-3">
+                  <Col md={6}>
+                    <Form.Group controlId="reportId2">
+                      <Form.Label>
+                        Report ID 2 <span className="text-danger">*</span>
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        value={reportId2 ?? ""}
+                        onChange={(e) => setReportId2(Number(e.target.value))}
+                        placeholder="Enter report id 2"
+                        required
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group controlId="projectReportStageId2">
+                      <Form.Label>Stage ID 2</Form.Label>
+                      <Form.Control
+                        type="number"
+                        value={projectReportStageId2 ?? ""}
+                        onChange={(e) => setProjectReportStageId2(Number(e.target.value))}
+                        placeholder="Enter stage id 2"
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+
+                <div className="d-flex gap-2">
+                  <Button variant="primary" type="submit" disabled={isFetching}>
+                    {isFetching ? "Loading..." : "Compare Reports"}
+                  </Button>
+                  <Button variant="secondary" type="button" onClick={handleReset}>
+                    Reset
+                  </Button>
+                </div>
               </Form>
             </Card.Body>
           </Card>
@@ -77,15 +131,24 @@ const ReportComparison = () => {
             </div>
           )}
 
-           
-          {isFetching ? <Spinner size="sm" animation="border" /> : "Get New Report"}
+          {isFetching ? (
+            <Spinner size="sm" animation="border" />
+          ) : (
+            <p>Get New Report</p>
+          )}
 
           <>
             <h2 className="d-flex justify-content-center">📊 Report Comparison</h2>
             <div style={{ marginBottom: "1rem" }}>
               <p><strong>Report ID 1:</strong> {submittedIds?.reportId1}</p>
               <p><strong>Report ID 2:</strong> {submittedIds?.reportId2}</p>
-              <p><strong>Total Differences Found:</strong> {reports &&reports.length}</p>
+              {submittedIds?.projectReportStageId1 && (
+                <p><strong>Project Report Stage ID 1:</strong> {submittedIds.projectReportStageId1}</p>
+              )}
+              {submittedIds?.projectReportStageId2 && (
+                <p><strong>Project Report Stage ID 2:</strong> {submittedIds.projectReportStageId2}</p>
+              )}
+              <p><strong>Total Differences Found:</strong> {reports && reports.length}</p>
             </div>
 
             <div style={{ maxHeight: "500px", overflowY: "auto", border: "1px solid #ccc" }}>
@@ -99,7 +162,7 @@ const ReportComparison = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {reports &&reports.map((diff, index) => (
+                  {reports && reports.map((diff, index) => (
                     <tr key={index}>
                       <td>{index + 1}</td>
                       <td>{diff.diff_key_path}</td>
