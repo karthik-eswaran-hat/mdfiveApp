@@ -19,10 +19,33 @@ function SideBar() {
       backgroundColor: '#f8f9fa', 
       borderRight: '1px solid #dee2e6'
     }}>
-      <h1 style={{ marginBottom: '30px', fontSize: '1.5rem', color: '#495057' }} className="d-flex justify-content-center mt-2">
-        Navigation
-      </h1>
-      
+    <h1
+      style={{
+        marginBottom: "30px",
+        fontSize: "2rem",
+        fontWeight: "600",
+        color: "#2d3436",
+        textAlign: "center",
+        position: "relative",
+        paddingBottom: "12px",
+      }}
+      className="mt-2"
+    >
+      MD5 Comparison
+      <span
+        style={{
+          content: "''",
+          position: "absolute",
+          bottom: "0",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "60px",
+          height: "3px",
+          background: "linear-gradient(90deg, #0984e3, #00cec9)",
+          borderRadius: "2px",
+        }}
+      />
+    </h1>
       <Nav 
         className="flex-column"
         activeKey={activeKey}
@@ -52,7 +75,7 @@ function SideBar() {
           </Nav.Link>
         </Nav.Item>
         
-        <Nav.Item>
+        {/* <Nav.Item>
           <Nav.Link eventKey="reports" as={Link} to="/dashboard">
            ⚙️  Reports
           </Nav.Link>
@@ -62,7 +85,7 @@ function SideBar() {
           <Nav.Link eventKey="help" as={Link} to="/dashboard">
             ❓ Help
           </Nav.Link>
-        </Nav.Item>
+        </Nav.Item> */}
       </Nav>
     </div>
   );

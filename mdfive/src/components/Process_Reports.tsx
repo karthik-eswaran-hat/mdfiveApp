@@ -155,7 +155,7 @@ const ProcessReports = () => {
             </Card.Header>
             <Card.Body>
               <Form.Group className="mb-3">
-                <Form.Label>Report Name</Form.Label>
+                <Form.Label>Report ID / Name</Form.Label>
                 <Form.Control
                   type="text"
                   placeholder="e.g., Report_1366_latest"
