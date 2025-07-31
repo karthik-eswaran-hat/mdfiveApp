@@ -1,13 +1,14 @@
 import { useQuery, useMutation } from "@tanstack/react-query"
-import { useState } from "react"
-import { Button, Table, Spinner, Alert, Pagination, Row, Col } from "react-bootstrap"
-import { getValidReport, loadTestData } from "../api/project_report" // Import the new function
+import { useState, useEffect } from "react"
+import { Button, Table, Spinner, Alert, Pagination, Row, Col, Modal } from "react-bootstrap"
+import { getValidReport, loadTestData } from "../api/project_report"
 import SideBar from "./SideBar"
 
 const LoadPage = () => {
   const [enabled, setEnabled] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [loadDataSuccess, setLoadDataSuccess] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false) // For confirmation popup
   const itemsPerPage = 10
 
   const {
@@ -25,31 +26,35 @@ const LoadPage = () => {
     enabled: false,
   })
 
-  // Mutation for loading test data
   const loadDataMutation = useMutation({
     mutationFn: loadTestData,
     onSuccess: (data) => {
-      console.log('Load data success:', data)
+      console.log("Load data success:", data)
       setLoadDataSuccess(true)
-      // Hide success message after 5 seconds
       setTimeout(() => setLoadDataSuccess(false), 5000)
-      // Optionally refetch reports after loading data
       if (enabled) {
         refetch()
       }
     },
     onError: (error) => {
-      console.error('Load data error:', error)
+      console.error("Load data error:", error)
     },
   })
 
   const handleGetReport = () => {
     setEnabled(true)
     refetch()
-    setCurrentPage(1) // Reset to first page every time data is refreshed
+    setCurrentPage(1)
   }
 
-  const handleLoadData = () => {
+  // Open confirmation popup instead of directly loading
+  const handleLoadDataClick = () => {
+    setShowConfirm(true)
+  }
+
+  // If user confirms, call mutation
+  const confirmLoadData = () => {
+    setShowConfirm(false)
     loadDataMutation.mutate()
   }
 
@@ -81,107 +86,132 @@ const LoadPage = () => {
     return <Pagination className="mt-3">{pages}</Pagination>
   }
 
+  // Auto trigger "Get New Report" on page load
+  useEffect(() => {
+    handleGetReport()
+  }, [])
+
   return (
     <>
-    <Row>
-      <Col md={2}>
-        <SideBar />
-      </Col>
-      <Col>
-        <div className="container mt-5">
-          <h2 className="mb-4">Report Viewer</h2>
+      <Row>
+        <Col md={2}>
+          <SideBar />
+        </Col>
+        <Col>
+          <div className="container mt-5">
+            <h2 className="mb-4">Report Viewer</h2>
 
-          <div className="d-flex gap-2 mb-3">
-            <Button onClick={handleGetReport} variant="primary" disabled={isFetching}>
-              {isFetching ? <Spinner size="sm" animation="border" /> : "Get New Report"}
-            </Button>
-            
-            <Button 
-              onClick={handleLoadData} 
-              variant="success" 
-              disabled={loadDataMutation.isPending || !reports}
-            >
-              {loadDataMutation.isPending ? (
-                <>
-                  <Spinner size="sm" animation="border" className="me-2" />
-                  Loading Data...
-                </>
-              ) : (
-                "Load Data"
-              )}
-            </Button>
-          </div>
+            <div className="d-flex gap-2 mb-3">
+              <Button onClick={handleGetReport} variant="primary" disabled={isFetching}>
+                {isFetching ? <Spinner size="sm" animation="border" /> : "Get New Report"}
+              </Button>
 
-          {!isFetching && reports?.length > 0 && (
-            <div className="alert alert-success alert-dismissible fade show" role="alert">
-              Successfully fetched the new report
-              <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              <Button
+                onClick={handleLoadDataClick}
+                variant="success"
+                disabled={loadDataMutation.isPending || !reports}
+              >
+                {loadDataMutation.isPending ? (
+                  <>
+                    <Spinner size="sm" animation="border" className="me-2" />
+                    Loading Data...
+                  </>
+                ) : (
+                  "Load Data"
+                )}
+              </Button>
             </div>
-          )}
 
-          {loadDataSuccess && (
-            <div className="alert alert-success alert-dismissible fade show" role="alert">
-              Data loaded successfully to the database!
-              <button 
-                type="button" 
-                className="btn-close" 
-                onClick={() => setLoadDataSuccess(false)}
-                aria-label="Close"
-              ></button>
+            {!isFetching && reports?.length > 0 && (
+              <div className="alert alert-success alert-dismissible fade show" role="alert">
+                Successfully fetched the new report
+                <button
+                  type="button"
+                  className="btn-close"
+                  data-bs-dismiss="alert"
+                  aria-label="Close"
+                ></button>
+              </div>
+            )}
+
+            {loadDataSuccess && (
+              <div className="alert alert-success alert-dismissible fade show" role="alert">
+                Data loaded successfully to the database!
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setLoadDataSuccess(false)}
+                  aria-label="Close"
+                ></button>
+              </div>
+            )}
+
+            {isError && (
+              <Alert variant="danger" className="mt-3">
+                Error: {error.message}
+              </Alert>
+            )}
+
+            {loadDataMutation.isError && (
+              <Alert variant="danger" className="mt-3">
+                Load Data Error: {loadDataMutation.error.message}
+              </Alert>
+            )}
+
+            <div className="mt-4">
+              <strong>Total Reports: {reports?.length || 0}</strong>
             </div>
-          )}
 
-          {isError && (
-            <Alert variant="danger" className="mt-3">
-              Error: {error.message}
-            </Alert>
-          )}
-
-          {loadDataMutation.isError && (
-            <Alert variant="danger" className="mt-3">
-              Load Data Error: {loadDataMutation.error.message}
-            </Alert>
-          )}
-
-          <div className="mt-4">
-            <strong>Total Reports: {reports?.length || 0}</strong>
-          </div>
-
-          <Table striped bordered hover responsive className="mt-4">
-            <thead className="table-dark">
-              <tr>
-                <th>S.NO</th>
-                <th>Sample Report ID</th>
-                <th>Report Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedReports?.length > 0 ? (
-                paginatedReports.map((report, index) => (
-                  <tr key={index}>
-                    <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td>{report.sample_report_id}</td>
-                    <td>{report.report_count}</td>
-                  </tr>
-                ))
-              ) : (
+            <Table striped bordered hover responsive className="mt-4">
+              <thead className="table-dark">
                 <tr>
-                  <td colSpan="3" className="text-center">
-                    {isFetching ? "Loading..." : "No reports available"}
-                  </td>
+                  <th>S.NO</th>
+                  <th>Sample Report ID</th>
+                  <th>Report Count</th>
                 </tr>
-              )}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody>
+                {paginatedReports?.length > 0 ? (
+                  paginatedReports.map((report, index) => (
+                    <tr key={index}>
+                      <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                      <td>{report.sample_report_id}</td>
+                      <td>{report.report_count}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="3" className="text-center">
+                      {isFetching ? "Loading..." : "No reports available"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </Table>
 
-          {paginatedReports?.length > 0 && renderPagination()}
-        </div>
-      </Col>
+            {paginatedReports?.length > 0 && renderPagination()}
+          </div>
+        </Col>
+      </Row>
 
-    </Row>
-    
+      {/* Confirmation Popup */}
+      <Modal show={showConfirm} onHide={() => setShowConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Load</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to load <strong>{reports?.length || 0}</strong> reports to the table?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowConfirm(false)}>
+            No
+          </Button>
+          <Button variant="primary" onClick={confirmLoadData}>
+            Yes, Load Data
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </>
-
   )
 }
 
