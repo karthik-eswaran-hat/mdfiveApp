@@ -104,3 +104,48 @@ def register_routes(app):
                 'success': False,
                 'error': str(e)
             }), 500
+
+    @app.route('/api/reportComparison', methods=['GET'])
+    def compare_report_id():
+        report_id_1 = request.args.get('report_id_1')
+        report_id_2 = request.args.get('report_id_2')
+        
+        project_report_stage_id_1 = request.args.get('project_report_stage_id_1')
+        project_report_stage_id_2 = request.args.get('project_report_stage_id_2')
+        
+        if not report_id_1 or not report_id_2:
+            return jsonify({
+                'success': False,
+                'error': 'Both report_id_1 and report_id_2 are required parameters'
+            }), 400
+        
+        if project_report_stage_id_1 and project_report_stage_id_2:
+            query = f"SELECT * FROM systemisers.compare_flattened_json_by_report_id({report_id_1}, {report_id_2}, {project_report_stage_id_1}, {project_report_stage_id_2});"
+        elif project_report_stage_id_1:
+            query = f"SELECT * FROM systemisers.compare_flattened_json_by_report_id({report_id_1}, {report_id_2}, {project_report_stage_id_1});"
+        else:
+            query = f"SELECT * FROM systemisers.compare_flattened_json_by_report_id({report_id_1}, {report_id_2});"
+        
+        try:
+            with db_cursor() as cur:
+                cur.execute(query)
+                rows = cur.fetchall()
+                result = [dict(row) for row in rows]
+            
+            return jsonify({
+                'success': True,
+                'data': result,
+                'comparison_info': {
+                    'report_id_1': report_id_1,
+                    'report_id_2': report_id_2,
+                    'project_report_stage_id_1': project_report_stage_id_1,
+                    'project_report_stage_id_2': project_report_stage_id_2,
+                    'differences_found': len(result)
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
