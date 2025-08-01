@@ -169,28 +169,41 @@ const ReportComparison = () => {
               )}
             </div>
 
-            <div style={{ maxHeight: "500px", overflowY: "auto", border: "1px solid #ccc" }}>
-              <Table striped bordered hover responsive>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Difference Path</th>
-                    <th>Value (Report 1)</th>
-                    <th>Value (Report 2)</th>
+            <Table striped bordered hover responsive>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Difference Path</th>
+                  <th>
+                    Value (
+                    {submittedIds?.reportId1}
+                    {submittedIds?.projectReportStageId1
+                      ? `_${submittedIds.projectReportStageId1}`
+                      : ""}
+                    )
+                  </th>
+                  <th>
+                    Value (
+                    {submittedIds?.reportId2}
+                    {submittedIds?.projectReportStageId2
+                      ? `_${submittedIds.projectReportStageId2}`
+                      : ""}
+                    )
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports && reports.map((diff, index) => (
+                  <tr key={index}>
+                    <td>{index + 1}</td>
+                    <td>{diff.diff_key_path}</td>
+                    <td>{diff.value_1}</td>
+                    <td>{diff.value_2}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {reports && reports.map((diff, index) => (
-                    <tr key={index}>
-                      <td>{index + 1}</td>
-                      <td>{diff.diff_key_path}</td>
-                      <td>{diff.value_1}</td>
-                      <td>{diff.value_2}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
+                ))}
+              </tbody>
+            </Table>
+
           </>
         </Col>
       </Row>
