@@ -10,24 +10,26 @@ const ReportComparison = () => {
   const [projectReportStageId1, setProjectReportStageId1] = useState<number>();
   const [projectReportStageId2, setProjectReportStageId2] = useState<number>();
   const [submittedIds, setSubmittedIds] = useState(null);
+  const [insertFlag, setInsertFlag] = useState<boolean>(false);
 
   const {
     data: reports,
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ["reportComparison", reportId1, reportId2, projectReportStageId1, projectReportStageId2],
+    queryKey: ["reportComparison", reportId1, reportId2, projectReportStageId1, projectReportStageId2, insertFlag],
     queryFn: async () => {
-      const response = await compareReport(reportId1, reportId2, projectReportStageId1, projectReportStageId2);
+      const response = await compareReport(reportId1, reportId2, projectReportStageId1, projectReportStageId2, insertFlag);
       return response.data.data;
     },
     enabled: false,
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e, shouldInsert = false) => {
     e.preventDefault();
     if (!reportId1 || !reportId2) return;
-    setSubmittedIds({ reportId1, reportId2, projectReportStageId1, projectReportStageId2 });
+    setInsertFlag(shouldInsert);
+    setSubmittedIds({ reportId1, reportId2, projectReportStageId1, projectReportStageId2, insertFlag: shouldInsert });
     refetch();
   };
 
@@ -37,6 +39,7 @@ const ReportComparison = () => {
     setProjectReportStageId1(undefined);
     setProjectReportStageId2(undefined);
     setSubmittedIds(null);
+    setInsertFlag(false);
   };
 
   return (
@@ -52,7 +55,7 @@ const ReportComparison = () => {
               <h5>Enter Comparison Details</h5>
             </Card.Header>
             <Card.Body>
-              <Form onSubmit={handleSubmit}>
+              <Form onSubmit={(e) => handleSubmit(e, false)}>
                 
                 {/* Row for Report 1 & Stage 1 */}
                 <Row className="mb-3">
@@ -114,7 +117,15 @@ const ReportComparison = () => {
 
                 <div className="d-flex gap-2">
                   <Button variant="primary" type="submit" disabled={isFetching}>
-                    {isFetching ? "Loading..." : "Compare Reports"}
+                    {isFetching && !insertFlag ? "Comparing..." : "Compare Reports"}
+                  </Button>
+                  <Button 
+                    variant="success" 
+                    type="button" 
+                    onClick={(e) => handleSubmit(e, true)}
+                    disabled={isFetching}
+                  >
+                    {isFetching && insertFlag ? "Comparing & Inserting..." : "Compare & Insert"}
                   </Button>
                   <Button variant="secondary" type="button" onClick={handleReset}>
                     Reset
@@ -127,6 +138,7 @@ const ReportComparison = () => {
           {!isFetching && reports?.length > 0 && (
             <div className="alert alert-success alert-dismissible fade show" role="alert">
               Successfully fetched the new report
+              {submittedIds?.insertFlag && " and inserted into database"}
               <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
           )}
@@ -149,6 +161,12 @@ const ReportComparison = () => {
                 <p><strong>Project Report Stage ID 2:</strong> {submittedIds.projectReportStageId2}</p>
               )}
               <p><strong>Total Differences Found:</strong> {reports && reports.length}</p>
+              {submittedIds?.insertFlag && (
+                <p><strong>Action:</strong> <span className="badge bg-success">Compared & Inserted</span></p>
+              )}
+              {submittedIds?.insertFlag === false && (
+                <p><strong>Action:</strong> <span className="badge bg-primary">Compared Only</span></p>
+              )}
             </div>
 
             <div style={{ maxHeight: "500px", overflowY: "auto", border: "1px solid #ccc" }}>
