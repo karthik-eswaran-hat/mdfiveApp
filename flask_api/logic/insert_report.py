@@ -109,7 +109,7 @@ def insert_report(data, user_id, org_id, company_id):
     report_data = data["what_you_want_details"]
 
     bank_id = select_one("SELECT id FROM systemisers.banks WHERE name = %s", (report_data["bank"]["name"],))
-    branch_id = select_one("SELECT id FROM systemisers.bank_branches WHERE branch = %s", (report_data["bank_branch"]["branch"],))
+    branch_id = select_one("SELECT id FROM systemisers.bank_branches WHERE branch = %s and bank_id = %s", (report_data["bank_branch"]["branch"], bank_id))
     loan_scheme_id = select_one("SELECT id FROM systemisers.loan_schemes WHERE name = %s", (report_data["loan_scheme"]["name"],))
 
     report_id = insert_data(INSERT_PROJECT_REPORT, (
