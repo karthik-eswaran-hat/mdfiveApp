@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 from flask import Flask, request, jsonify
+from logic.insert_enhancement import insert_od_cc_enhancement_details
 from routes import register_routes
 import traceback
 from logic.fetch_json import fetch_json_from_db
@@ -254,6 +255,7 @@ def process_all_reports():
                     continue
                 
                 report_id = insert_report(json_data, user_id, org_id, company_id)
+                org_id = insert_od_cc_enhancement_details(json_data, org_id, company_id, report_id, user_id)
                 processed.append({'report_name': report_name, 'report_id': report_id})
             except Exception as e:
                 failed.append({'report_name': report_name, 'error': str(e)})

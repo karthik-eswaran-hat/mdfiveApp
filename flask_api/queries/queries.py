@@ -36,6 +36,18 @@ INSERT INTO systemisers.project_report_cc_ods (
 RETURNING id;
 """
 
+INSERT_OD_CC_ENHANCEMENT = """
+INSERT INTO systemisers.project_report_new_cc_ods (
+    amount, int_rate, od_cc_type, enhancement_amount,
+    organization_id, company_id, report_id,
+    created_by, updated_by, created_at, updated_at,
+    name, sanction_date, amount_type
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+RETURNING id
+"""
+
+
+
 INSERT_FRESH_LOAN = """
 INSERT INTO systemisers.project_report_new_loans (
     organization_id, company_id, report_id,
