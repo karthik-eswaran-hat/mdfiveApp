@@ -1,11 +1,12 @@
 import json
 from datetime import datetime
+import pdb
 from db_utils.db_utils import insert_data, insert_many, select_one, select_all, update_data, update_many
 from queries.queries import (
     INSERT_PROJECT_REPORT, INSERT_TERM_LOAN, INSERT_OD_CC, INSERT_FRESH_LOAN,
     INSERT_ASSET, INSERT_ASSUMPTION, INSERT_ASSUMPTION_DETAIL, INSERT_LOAN_BIFURCATION,
     INSERT_TAKEOVER_LOAN, UPDATE_TERM_LOAN_TAKEOVER, UPDATE_OD_CC_TAKEOVER,
-    UPDATE_LOAN_BIFURCATION_CURRENT
+    UPDATE_LOAN_BIFURCATION_CURRENT, INSERT_OD_CC_ENHANCEMENT
 )
 
 itr_version_map = {"ITR1": 1, "ITR2": 2, "ITR3": 3, "ITR4": 4, "ITR5": 5, "ITR6": 6, "ITR7": 7}
@@ -14,6 +15,7 @@ loan_type_map = {"term_loan": 0, "bussiness_loan": 1}
 installment_type_map = {"month": 0, "year": 1}
 amount_type_map = {"inr": 0, "lakhs": 1}
 takeover_type_map = {"od_cc": 0, "term_loan": 1}
+od_type = { "renewal": 0, "fresh": 1, "enhancement": 2 }
 
 def format_od_limits(od_limits):
     # Convert to the exact format matching record 1454: values as numbers, compact JSON
@@ -69,6 +71,38 @@ def find_matching_loans_by_bank_and_amount(inserted_loans, bank_name, original_a
             print(f"Found matching loan: ID={loan['id']}, Bank={loan_bank}, Amount={loan_amount}")
     
     return matching_loans
+
+def insert_od_cc_enhancement_details(data, org_id, company_id, report_id, user_id):
+    """Insert OD/CC enhancement details"""
+    print("Processing OD/CC Enhancement Details...")
+    now = datetime.now()
+    enhancement_list = data.get("proposed_loan_details", {}).get("od_cc_enhancement_details", [])
+    
+    for enhancement in enhancement_list:
+        try:
+            sanction_date = datetime.strptime(enhancement["sanction_date"], "%Y-%m-%d").date()
+            amount_type = amount_type_map.get(enhancement.get("amount_type", "inr").lower(), 0)
+            values = (
+                enhancement["amount"],
+                enhancement["int_rate"],
+                od_type[enhancement["od_cc_type"]],
+                enhancement["enhancement_amount"],
+                org_id, company_id, report_id,
+                user_id, user_id, now, now,
+                enhancement["name"], sanction_date,
+                amount_type
+            )
+            print("INSERTING WITH VALUES:", values) 
+            enhancement_id = insert_data(INSERT_OD_CC_ENHANCEMENT, values)
+           
+
+            if enhancement_id:
+                print(f"✅ Inserted OD/CC Enhancement loan: {enhancement['name']}, ID: {enhancement_id}")
+            else:
+                print(f"⚠️ No ID returned for enhancement: {enhancement['name']}")
+        except Exception as e:
+            print(f"❌ Failed to insert OD/CC Enhancement: {e}")
+
 
 def insert_report(data, user_id, org_id, company_id):
     now = datetime.now()
@@ -135,44 +169,69 @@ def insert_report(data, user_id, org_id, company_id):
         except Exception as e:
             print(f"Failed to insert term loan: {e}")
 
-            # --- STEP 2: Insert Existing OD/CC Details ---
+    # --- STEP 2: Insert Existing OD/CC Details ---
     od_cc_details = existing_loans.get("od_cc_details", [])
-    print("od_cc_nanda", od_cc_details)
+    print("STEP 2: Inserting existing OD/CC details...")
 
-    for od in od_cc_details:
-        try:
-            # Use the new function to create exact JSONB string format
-            od_limits_json = format_od_limits_as_jsonb_string(od.get("od_limits", []))
+    if not isinstance(od_cc_details, list) or not od_cc_details:
+        print("No existing OD/CC loans to insert.")
+    else:
+        for idx, od in enumerate(od_cc_details):
+            if not od or not isinstance(od, dict):
+                print(f"⚠️ Skipping invalid or None OD/CC entry at index {idx}")
+                continue
+
+            try:
+                od_limits = od.get("od_limits", [])
+                od_limits_json = format_od_limits_as_jsonb_string(od_limits)
+
+                amount_type_os = amount_type_map.get(str(od.get("amount_type_os", "")).lower(), 0)
+                amount_type_od_cc = amount_type_map.get(str(od.get("amount_type_od_cc", "")).lower(), 0)
+
+                bank_name = od.get("bank", {}).get("name")
+                if not bank_name:
+                    raise KeyError("bank.name")
+
+                ex_bank_id = select_one("SELECT id FROM systemisers.banks WHERE name = %s", (bank_name,))
+                if not ex_bank_id:
+                    raise ValueError(f"No bank ID found for name: {bank_name}")
+
+                od_cc_id = insert_data(INSERT_OD_CC, (
+                    org_id,
+                    company_id,
+                    report_id,
+                    od.get("os_amount", 0),
+                    od.get("amount", 0),
+                    od.get("type"),
+                    user_id,
+                    user_id,
+                    now,
+                    now,
+                    ex_bank_id,
+                    od.get("int_rate", 0),
+                    od.get("name", f"OD_{idx}"),
+                    od.get("sanction_date"),
+                    od_limits_json,
+                    None,  # takeover_id
+                    amount_type_os,
+                    amount_type_od_cc
+                ))
+
+                inserted_od_cc.append({
+                    'id': od_cc_id,
+                    'name': od.get("name", f"OD_{idx}"),
+                    'data': od
+                })
+
+                print(f"✅ Inserted OD/CC loan: {od.get('name', f'OD_{idx}')}")
             
-            amount_type_os = amount_type_map.get(od.get("amount_type_os", "").lower(), 0)
-            amount_type_od_cc = amount_type_map.get(od.get("amount_type_od_cc", "").lower(), 0)
+            except KeyError as e:
+                print(f"⚠️ Missing required field for OD/CC loan at index {idx}: {e}")
+            except json.JSONEncodeError as e:
+                print(f"⚠️ JSON encoding error for OD/CC loan at index {idx}: {e}")
+            except Exception as e:
+                print(f"⚠️ Failed to insert OD/CC loan at index {idx}: {e}")
 
-            ex_bank_id = select_one("SELECT id FROM systemisers.banks WHERE name = %s", (od["bank"]["name"],))
-
-            od_cc_id = insert_data(INSERT_OD_CC, (
-                org_id, company_id, report_id,
-                od["os_amount"], od["amount"], od.get("type"),
-                user_id, user_id, now, now,
-                ex_bank_id, od["int_rate"], od["name"], od["sanction_date"],
-                od_limits_json,  # This will be inserted as JSONB
-                None,  # takeover_id
-                amount_type_os, amount_type_od_cc
-            ))
-
-            inserted_od_cc.append({
-                'id': od_cc_id,
-                'name': od.get("name"),
-                'data': od
-            })
-
-            print(f"✅ Inserted OD/CC loan: {od['name']}")
-            
-        except KeyError as e:
-            print(f"⚠️ Missing required field for OD/CC loan: {e}")
-        except json.JSONEncodeError as e:
-            print(f"⚠️ JSON encoding error for OD/CC loan: {e}")
-        except Exception as e:
-            print(f"⚠️ Failed to insert OD/CC loan: {e}")
 
     # --- STEP 3: Process Takeover from repayment_summary ---
     print("STEP 3: Processing takeover loans from repayment_summary...")
@@ -266,7 +325,6 @@ def insert_report(data, user_id, org_id, company_id):
 
             except Exception as e:
                 print(f"Failed to process takeover entry: {e}")
-
     except Exception as e:
         print(f"Error processing takeover from repayment_summary: {e}")
 
@@ -278,7 +336,7 @@ def insert_report(data, user_id, org_id, company_id):
         # Process legacy takeover term loans
         for tl in takeover_details.get("term_loan_details") or []:
             try:
-                print("DEBUG:Takeover Term loan entry:", tl)
+                print("DEBUG: Takeover Term loan entry:", tl)
                 
                 if not tl.get("num_installments") or not tl.get("int_rate"):
                     print("Skipping takeover term loan due to missing required fields")
@@ -321,7 +379,6 @@ def insert_report(data, user_id, org_id, company_id):
 
             except Exception as e:
                 print(f"Failed to process legacy takeover term loan: {e}")
-
         # Process legacy takeover OD/CC loans
         for od in takeover_details.get("od_cc_details") or []:
             try:
@@ -373,6 +430,7 @@ def insert_report(data, user_id, org_id, company_id):
     try:
         fresh_loans = (data.get("proposed_loan_details") or {}).get("fresh_term_loan_details") or []
         for fresh in fresh_loans:
+            print("DEBUG: Fresh loan entry:", fresh)
             try:
                 new_loan_id = insert_data(INSERT_FRESH_LOAN, (
                     org_id, company_id, report_id,
@@ -395,8 +453,15 @@ def insert_report(data, user_id, org_id, company_id):
     except Exception as e:
         print(f"Error processing fresh loans: {e}")
 
+    # --- STEP 5.1: OD/CC Enhancement Details ---
+    print("STEP 5.1: Processing OD/CC Enhancement Details...")
+    try:
+        insert_od_cc_enhancement_details(data, org_id, company_id, report_id, user_id)
+    except Exception as e:
+        print(f"Error processing OD/CC enhancement details: {e}")
+
     # --- STEP 6: Loan Bifurcation ---
-    print("🔄 STEP 6: Processing loan bifurcation...")
+    print("STEP 6: Processing loan bifurcation...")
     try:
         bifurcation_list = data.get("loan_bifurcation_details") or []
         for bifur in bifurcation_list:
@@ -416,6 +481,8 @@ def insert_report(data, user_id, org_id, company_id):
 
     except Exception as e:
         print(f"Error processing loan bifurcation: {e}")
+
+    # --- STEP 7: Assumption Details ---
     print("STEP 7: Processing assumption details...")
     try:
         assumption_details = data.get("assumption_details") or {}
@@ -472,7 +539,7 @@ def insert_report(data, user_id, org_id, company_id):
     except Exception as e:
         print(f"Error processing assumption details: {e}")
 
-    print(f"\n Project report (ID: {report_id}) inserted successfully!")
+    print(f"\n✅ Project report (ID: {report_id}) inserted successfully!")
     print(f"Summary:")
     print(f"   - Term Loans: {len(inserted_term_loans)}")
     print(f"   - OD/CC Loans: {len(inserted_od_cc)}")
