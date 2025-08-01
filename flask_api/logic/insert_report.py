@@ -16,15 +16,37 @@ amount_type_map = {"inr": 0, "lakhs": 1}
 takeover_type_map = {"od_cc": 0, "term_loan": 1}
 
 def format_od_limits(od_limits):
+    # Convert to the exact format matching record 1454: values as numbers, compact JSON
     return {str(limit["year"]): limit["limit"] for limit in od_limits}
+
+def format_od_limits_as_jsonb_string(od_limits):
+    """
+    Format od_limits to match the exact JSONB string format in record 1454:
+    "{\"2024\":42600000,\"2025\":32000000}"
+    """
+    if not od_limits:
+        return "{}"
+    
+    # Create dictionary with string keys and numeric values
+    od_limits_dict = {str(limit["year"]): limit["limit"] for limit in od_limits}
+    
+    # Create the exact JSON string format with escaped quotes
+    json_pairs = []
+    for year, limit in od_limits_dict.items():
+        json_pairs.append(f'\\"{year}\\":{limit}')
+    
+    # Join pairs and wrap in quotes with escaped braces
+    json_string = '"{' + ','.join(json_pairs) + '}"'
+    
+    return json_string
 
 def update_loan_bifurcation_status(report_id):
     """Update loan bifurcation status like in Rails"""
     try:
         update_data(UPDATE_LOAN_BIFURCATION_CURRENT, (report_id,))
-        print(f"✅ Updated loan bifurcation status for report {report_id}")
+        print(f"Updated loan bifurcation status for report {report_id}")
     except Exception as e:
-        print(f"❌ Failed to update loan bifurcation status: {e}")
+        print(f"Failed to update loan bifurcation status: {e}")
 
 def find_matching_loans_by_bank_and_amount(inserted_loans, bank_name, original_amount, tolerance=0.01):
     """Find matching loans by bank name and amount with tolerance"""
@@ -44,7 +66,7 @@ def find_matching_loans_by_bank_and_amount(inserted_loans, bank_name, original_a
         
         if bank_match and amount_match:
             matching_loans.append(loan)
-            print(f"🎯 Found matching loan: ID={loan['id']}, Bank={loan_bank}, Amount={loan_amount}")
+            print(f"Found matching loan: ID={loan['id']}, Bank={loan_bank}, Amount={loan_amount}")
     
     return matching_loans
 
@@ -73,7 +95,7 @@ def insert_report(data, user_id, org_id, company_id):
     if not isinstance(term_loans, list):
         term_loans = []
 
-    print("🔄 STEP 1: Inserting existing term loans...")
+    print("STEP 1: Inserting existing term loans...")
     for tl in term_loans:
         try:
             print("DEBUG: Term loan entry:", tl)
@@ -108,62 +130,62 @@ def insert_report(data, user_id, org_id, company_id):
                 'name': tl.get("name"),
                 'data': tl
             })
-            print(f"✅ Inserted term loan ID: {term_loan_id}, Name: {tl.get('name')}, Bank: {bank_name}, Amount: {loan_amt}")
+            print(f"Inserted term loan ID: {term_loan_id}, Name: {tl.get('name')}, Bank: {bank_name}, Amount: {loan_amt}")
 
         except Exception as e:
-            print(f"❌ Failed to insert term loan: {e}")
+            print(f"Failed to insert term loan: {e}")
 
-    # --- STEP 2: Insert Existing OD/CC Loans ---
-    print("🔄 STEP 2: Inserting existing OD/CC loans...")
-    for od in existing_loans.get("od_cc_details") or []:
+            # --- STEP 2: Insert Existing OD/CC Details ---
+    od_cc_details = existing_loans.get("od_cc_details", [])
+    print("od_cc_nanda", od_cc_details)
+
+    for od in od_cc_details:
         try:
-            print("DEBUG: OD/CC entry:", od)
-            bank_name = od.get("bank", {}).get("name")
-            if not bank_name:
-                print("⚠️ Skipping OD/CC due to missing bank name")
-                continue
+            # Use the new function to create exact JSONB string format
+            od_limits_json = format_od_limits_as_jsonb_string(od.get("od_limits", []))
+            
+            amount_type_os = amount_type_map.get(od.get("amount_type_os", "").lower(), 0)
+            amount_type_od_cc = amount_type_map.get(od.get("amount_type_od_cc", "").lower(), 0)
 
-            od_bank_id = select_one("SELECT id FROM systemisers.banks WHERE name = %s", (bank_name,))
-            if not od_bank_id:
-                print(f"⚠️ Skipping OD/CC. Bank not found: {bank_name}")
-                continue
-
-            od_limits_json = json.dumps(format_od_limits(od.get("od_limits", [])))
-            amt_type_os = amount_type_map.get(od.get("amount_type_os", "inr").lower(), 0)
-            amt_type_od = amount_type_map.get(od.get("amount_type_od_cc", "inr").lower(), 0)
+            ex_bank_id = select_one("SELECT id FROM systemisers.banks WHERE name = %s", (od["bank"]["name"],))
 
             od_cc_id = insert_data(INSERT_OD_CC, (
                 org_id, company_id, report_id,
-                od.get("os_amount"), od.get("amount"), od.get("type"),
+                od["os_amount"], od["amount"], od.get("type"),
                 user_id, user_id, now, now,
-                od_bank_id, od.get("int_rate"), od.get("name"), od.get("sanction_date"),
-                od_limits_json, None,  # takeover_id is None initially
-                amt_type_os, amt_type_od
+                ex_bank_id, od["int_rate"], od["name"], od["sanction_date"],
+                od_limits_json,  # This will be inserted as JSONB
+                None,  # takeover_id
+                amount_type_os, amount_type_od_cc
             ))
-            
+
             inserted_od_cc.append({
                 'id': od_cc_id,
                 'name': od.get("name"),
                 'data': od
             })
-            print(f"✅ Inserted OD/CC ID: {od_cc_id}, Name: {od.get('name')}, Bank: {bank_name}")
 
+            print(f"✅ Inserted OD/CC loan: {od['name']}")
+            
+        except KeyError as e:
+            print(f"⚠️ Missing required field for OD/CC loan: {e}")
+        except json.JSONEncodeError as e:
+            print(f"⚠️ JSON encoding error for OD/CC loan: {e}")
         except Exception as e:
-            print(f"❌ Failed to insert OD/CC: {e}")
+            print(f"⚠️ Failed to insert OD/CC loan: {e}")
 
     # --- STEP 3: Process Takeover from repayment_summary ---
-    print("🔄 STEP 3: Processing takeover loans from repayment_summary...")
+    print("STEP 3: Processing takeover loans from repayment_summary...")
     try:
         repayment_summary = data.get("repayment_summary") or {}
         takeover_list = repayment_summary.get("take_over") or []
         
-        print(f"📋 Found {len(takeover_list)} takeover entries in repayment_summary")
+        print(f"Found {len(takeover_list)} takeover entries in repayment_summary")
         
         for takeover_entry in takeover_list:
             try:
                 print(f"DEBUG: Processing takeover entry: {takeover_entry}")
                 
-                # Extract takeover details
                 bank_name = takeover_entry.get("bank_name")
                 original_amount = float(takeover_entry.get("original_amount", 0))
                 interest_rate = float(takeover_entry.get("interest_rate", 0))
@@ -180,7 +202,7 @@ def insert_report(data, user_id, org_id, company_id):
                 # Generate takeover name (similar to Rails pattern)
                 takeover_name = f"TO-TL-{bank_name.upper().replace(' ', '')}-{original_amount/100000:.2f}L"
                 
-                print(f"🔄 Creating takeover: {takeover_name}")
+                print(f"Creating takeover: {takeover_name}")
 
                 # STEP 3.1: Insert takeover record
                 takeover_id = insert_data(INSERT_TAKEOVER_LOAN, (
@@ -190,7 +212,7 @@ def insert_report(data, user_id, org_id, company_id):
                     start_date, takeover_name
                 ))
 
-                print(f"✅ Inserted takeover record with ID: {takeover_id}, Name: {takeover_name}")
+                print(f"Inserted takeover record with ID: {takeover_id}, Name: {takeover_name}")
 
                 # STEP 3.2: Find matching existing loans
                 matching_loans = find_matching_loans_by_bank_and_amount(
@@ -217,7 +239,7 @@ def insert_report(data, user_id, org_id, company_id):
                             "UPDATE systemisers.project_report_takeovers SET is_merged = %s WHERE id = %s",
                             (True, takeover_id)
                         )
-                        print(f"🔄 Updated takeover {takeover_id} as merged (multiple loans)")
+                        print(f"Updated takeover {takeover_id} as merged (multiple loans)")
 
                     for loan in matching_loans:
                         loan_id = loan['id']
@@ -225,41 +247,41 @@ def insert_report(data, user_id, org_id, company_id):
                             if loan_type_for_update == "term_loan":
                                 affected_rows = update_data(UPDATE_TERM_LOAN_TAKEOVER, (takeover_id, now, loan_id))
                                 if affected_rows > 0:
-                                    print(f"✅ Updated term loan {loan_id} with takeover_id {takeover_id}")
+                                    print(f"Updated term loan {loan_id} with takeover_id {takeover_id}")
                                     update_loan_bifurcation_status(report_id)
                                 else:
                                     print(f"⚠️ No rows affected when updating term loan {loan_id}")
                             else:
                                 affected_rows = update_data(UPDATE_OD_CC_TAKEOVER, (takeover_id, now, loan_id))
                                 if affected_rows > 0:
-                                    print(f"✅ Updated OD/CC {loan_id} with takeover_id {takeover_id}")
+                                    print(f"Updated OD/CC {loan_id} with takeover_id {takeover_id}")
                                     update_loan_bifurcation_status(report_id)
                                 else:
                                     print(f"⚠️ No rows affected when updating OD/CC {loan_id}")
                                     
                         except Exception as e:
-                            print(f"❌ Failed to update loan {loan_id}: {e}")
+                            print(f"Failed to update loan {loan_id}: {e}")
                 else:
                     print(f"⚠️ No matching loans found for takeover: Bank={bank_name}, Amount={original_amount}")
 
             except Exception as e:
-                print(f"❌ Failed to process takeover entry: {e}")
+                print(f"Failed to process takeover entry: {e}")
 
     except Exception as e:
-        print(f"❌ Error processing takeover from repayment_summary: {e}")
+        print(f"Error processing takeover from repayment_summary: {e}")
 
     # --- STEP 4: Process Legacy Takeover (if exists) ---
-    print("🔄 STEP 4: Processing legacy takeover loans...")
+    print("STEP 4: Processing legacy takeover loans...")
     try:
         takeover_details = (data.get("proposed_loan_details") or {}).get("take_over_details") or {}
         
         # Process legacy takeover term loans
         for tl in takeover_details.get("term_loan_details") or []:
             try:
-                print("DEBUG: Legacy Takeover Term loan entry:", tl)
+                print("DEBUG:Takeover Term loan entry:", tl)
                 
                 if not tl.get("num_installments") or not tl.get("int_rate"):
-                    print("⚠️ Skipping legacy takeover term loan due to missing required fields")
+                    print("Skipping takeover term loan due to missing required fields")
                     continue
 
                 takeover_type = takeover_type_map.get("term_loan", 1)
@@ -271,7 +293,7 @@ def insert_report(data, user_id, org_id, company_id):
                     org_id, company_id, is_merged, tl.get("sanction_date"), tl.get("name")
                 ))
 
-                print(f"✅ Inserted legacy takeover record with ID: {takeover_id}")
+                print(f"Inserted legacy takeover record with ID: {takeover_id}")
 
                 # Find and update related term loans (existing logic)
                 term_loan_ids_to_update = []
@@ -292,13 +314,13 @@ def insert_report(data, user_id, org_id, company_id):
                     try:
                         affected_rows = update_data(UPDATE_TERM_LOAN_TAKEOVER, (takeover_id, now, loan_id))
                         if affected_rows > 0:
-                            print(f"✅ Updated term loan {loan_id} with takeover_id {takeover_id}")
+                            print(f"Updated term loan {loan_id} with takeover_id {takeover_id}")
                             update_loan_bifurcation_status(report_id)
                     except Exception as e:
-                        print(f"❌ Failed to update term loan {loan_id}: {e}")
+                        print(f"Failed to update term loan {loan_id}: {e}")
 
             except Exception as e:
-                print(f"❌ Failed to process legacy takeover term loan: {e}")
+                print(f"Failed to process legacy takeover term loan: {e}")
 
         # Process legacy takeover OD/CC loans
         for od in takeover_details.get("od_cc_details") or []:
@@ -314,7 +336,7 @@ def insert_report(data, user_id, org_id, company_id):
                     org_id, company_id, is_merged, od.get("sanction_date"), od.get("name")
                 ))
 
-                print(f"✅ Inserted legacy takeover OD/CC record with ID: {takeover_id}")
+                print(f"Inserted legacy takeover OD/CC record with ID: {takeover_id}")
 
                 # Find and update related OD/CC loans (existing logic)
                 od_cc_ids_to_update = []
@@ -335,19 +357,19 @@ def insert_report(data, user_id, org_id, company_id):
                     try:
                         affected_rows = update_data(UPDATE_OD_CC_TAKEOVER, (takeover_id, now, odcc_id))
                         if affected_rows > 0:
-                            print(f"✅ Updated OD/CC {odcc_id} with takeover_id {takeover_id}")
+                            print(f"Updated OD/CC {odcc_id} with takeover_id {takeover_id}")
                             update_loan_bifurcation_status(report_id)
                     except Exception as e:
-                        print(f"❌ Failed to update OD/CC {odcc_id}: {e}")
+                        print(f"Failed to update OD/CC {odcc_id}: {e}")
 
             except Exception as e:
-                print(f"❌ Failed to process legacy takeover OD/CC: {e}")
+                print(f"Failed to process legacy takeover OD/CC: {e}")
 
     except Exception as e:
-        print(f"❌ Error processing legacy takeover details: {e}")
+        print(f"Error processing legacy takeover details: {e}")
 
     # --- STEP 5: Fresh Term Loans ---
-    print("🔄 STEP 5: Processing fresh term loans...")
+    print("STEP 5: Processing fresh term loans...")
     try:
         fresh_loans = (data.get("proposed_loan_details") or {}).get("fresh_term_loan_details") or []
         for fresh in fresh_loans:
@@ -368,10 +390,10 @@ def insert_report(data, user_id, org_id, company_id):
                     ))
 
             except Exception as e:
-                print(f"❌ Failed to insert fresh loan: {e}")
+                print(f"Failed to insert fresh loan: {e}")
 
     except Exception as e:
-        print(f"❌ Error processing fresh loans: {e}")
+        print(f"Error processing fresh loans: {e}")
 
     # --- STEP 6: Loan Bifurcation ---
     print("🔄 STEP 6: Processing loan bifurcation...")
@@ -390,13 +412,11 @@ def insert_report(data, user_id, org_id, company_id):
                     )
                 )
             except Exception as e:
-                print(f"❌ Failed to insert loan bifurcation: {e}")
+                print(f"Failed to insert loan bifurcation: {e}")
 
     except Exception as e:
-        print(f"❌ Error processing loan bifurcation: {e}")
-
-    # --- STEP 7: Assumption Details ---
-    print("🔄 STEP 7: Processing assumption details...")
+        print(f"Error processing loan bifurcation: {e}")
+    print("STEP 7: Processing assumption details...")
     try:
         assumption_details = data.get("assumption_details") or {}
         assumption_list = assumption_details.get("assumption_details", [{}])
@@ -450,10 +470,10 @@ def insert_report(data, user_id, org_id, company_id):
             insert_many(INSERT_ASSUMPTION_DETAIL, detail_rows)
 
     except Exception as e:
-        print(f"❌ Error processing assumption details: {e}")
+        print(f"Error processing assumption details: {e}")
 
-    print(f"\n🎉 Project report (ID: {report_id}) inserted successfully!")
-    print(f"📊 Summary:")
+    print(f"\n Project report (ID: {report_id}) inserted successfully!")
+    print(f"Summary:")
     print(f"   - Term Loans: {len(inserted_term_loans)}")
     print(f"   - OD/CC Loans: {len(inserted_od_cc)}")
     print(f"   - Report ID: {report_id}")

@@ -95,9 +95,9 @@ def process_single_report():
             }), 400
         
         # Default configuration
-        user_id = 181
-        org_id = 175
-        company_id = 175
+        user_id = 187
+        org_id = 179
+        company_id = 179
         
         print(f"Fetching data for report: {report_name}")
         
@@ -141,7 +141,7 @@ def download_report_endpoint():
         
         data = request.get_json()
         report_id = data.get('report_id')
-        email = data.get('email', 'nandagopal@gmail.com')
+        email = data.get('email', 'bharth@gmail.com')
         password = data.get('password', 'Testing@12345')
         
         if not report_id:
@@ -230,9 +230,9 @@ def get_all_reports():
 @app.route('/api/process-all-reports', methods=['POST'])
 def process_all_reports():
     try:
-        user_id = 181
-        org_id = 175
-        company_id = 175
+        user_id = 187
+        org_id = 179
+        company_id = 179
 
         # Get distinct report names you want to process
         query = """
