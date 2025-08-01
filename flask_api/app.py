@@ -1,18 +1,27 @@
-from flask import Flask
-from flask_cors import CORS
 from flask import Flask, request, jsonify
-from routes import register_routes
+<<<<<<< Updated upstream
+=======
+from flask_cors import CORS
+import re
+from datetime import datetime
 import traceback
+from logic.insert_enhancement import insert_od_cc_enhancement_details
+>>>>>>> Stashed changes
+from routes import register_routes
 from logic.fetch_json import fetch_json_from_db
 from logic.insert_report import insert_report
 from db_utils.db_utils import select_all, select_one
 from logic.report_downloader import download_report
 
-
 app = Flask(__name__)
 CORS(app)
 
+# Hardcoded credentials for download
+HARDCODED_EMAIL = "bharath@gmail.com"
+HARDCODED_PASSWORD = "Testing@12345"
+
 register_routes(app)
+
 def extract_report_number(report_name):
     match = re.match(r"Report_(\d+)", report_name)
     return match.group(1) if match else None
@@ -132,19 +141,29 @@ def process_single_report():
             'status': 'error',
             'message': str(e)
         }), 500
-        
+
 @app.route('/api/download-report', methods=['POST'])
 def download_report_endpoint():
-    """Download a report by ID"""
+    """Download a report by ID with hardcoded credentials"""
     try:
         print("=== Downloading Report ===")
         
         data = request.get_json()
-        report_id = data.get('report_id')
-        email = data.get('email', 'bharth@gmail.com')
-        password = data.get('password', 'Testing@12345')
+        print(f"Received data: {data}")
         
+        report_id = data.get('report_id')
+        
+        # Use hardcoded credentials (ignore any credentials sent from frontend)
+        email = HARDCODED_EMAIL
+        password = HARDCODED_PASSWORD
+        
+        print(f"Report ID: {report_id}")
+        print(f"Using hardcoded email: {email}")
+        print(f"Using hardcoded password: {'*' * len(password)}")
+        
+        # Validate required fields
         if not report_id:
+            print("❌ Missing report_id")
             return jsonify({
                 'status': 'error',
                 'message': 'Report ID is required'
@@ -152,6 +171,7 @@ def download_report_endpoint():
         
         print(f"Downloading report ID: {report_id}")
         
+        # Call the download function with hardcoded credentials
         success = download_report(report_id, email, password)
         
         if success:
@@ -166,14 +186,16 @@ def download_report_endpoint():
         else:
             return jsonify({
                 'status': 'error',
-                'message': f'Failed to download report {report_id}'
+                'message': f'Failed to download report {report_id}. Authentication or download error.'
             }), 500
             
     except Exception as e:
-        print(f"Error in download_report_endpoint: {e}")
+        print(f"❌ Error in download_report_endpoint: {e}")
+        print(f"❌ Error type: {type(e)}")
+        traceback.print_exc()
         return jsonify({
             'status': 'error',
-            'message': str(e)
+            'message': f'Internal server error: {str(e)}'
         }), 500
 
 @app.route('/api/reports', methods=['GET'])
@@ -227,6 +249,7 @@ def get_all_reports():
             'message': str(e),
             'data': []
         }), 500
+
 @app.route('/api/process-all-reports', methods=['POST'])
 def process_all_reports():
     try:
@@ -332,6 +355,31 @@ def get_report_summary():
             'data': []
         }), 500
 
+# Test endpoint for hardcoded credentials
+@app.route('/api/test-credentials', methods=['POST'])
+def test_credentials_endpoint():
+    """Test the hardcoded credentials"""
+    try:
+        print("Testing hardcoded credentials...")
+        from logic.report_downloader import test_credentials
+        
+        is_valid = test_credentials(HARDCODED_EMAIL, HARDCODED_PASSWORD)
+        
+        return jsonify({
+            'status': 'success' if is_valid else 'error',
+            'message': 'Hardcoded credentials are valid' if is_valid else 'Hardcoded credentials are invalid',
+            'valid': is_valid,
+            'email': HARDCODED_EMAIL
+        }), 200 if is_valid else 401
+        
+    except Exception as e:
+        print(f"Error testing hardcoded credentials: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({
@@ -347,4 +395,4 @@ def internal_error(error):
     }), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, use_reloader=True) 
+    app.run(debug=True, use_reloader=True)
