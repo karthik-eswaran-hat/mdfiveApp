@@ -7,7 +7,8 @@ import {
   Form,
   Row,
   Col,
-  Card
+  Card,
+  Pagination
 } from 'react-bootstrap';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import SideBar from './SideBar';
@@ -26,8 +27,12 @@ interface ReportData {
   failed_reports: any[];
 }
 
+const REPORTS_PER_PAGE = 10;
+
 const ProcessReports = () => {
   const [singleReportName, setSingleReportName] = useState('');
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Query to fetch all processed reports
   const {
@@ -40,7 +45,7 @@ const ProcessReports = () => {
       const response = await service({ url: 'api/reports', method: 'get' });
       return response.data.data;
     },
-    enabled: false // Only fetch when manually triggered
+    enabled: false
   });
 
   // Mutation for processing a single report
@@ -68,6 +73,12 @@ const ProcessReports = () => {
         data: { report_id: reportId }
       });
       return response.data;
+    },
+    onMutate: (reportId: number) => {
+      setDownloadingId(reportId);
+    },
+    onSettled: () => {
+      setDownloadingId(null);
     }
   });
 
@@ -78,11 +89,54 @@ const ProcessReports = () => {
   };
 
   const handleDownload = (reportId: number) => {
-    downloadMutation.mutate(reportId);
+    if (!downloadingId) {
+      downloadMutation.mutate(reportId);
+    }
   };
 
   const handleGetAllReports = () => {
     refetchReports();
+  };
+
+  // Calculate total pages and current page reports
+  const totalReports = allReports?.length || 0;
+  const totalPages = Math.ceil(totalReports / REPORTS_PER_PAGE);
+  const currentReports = allReports?.slice(
+    (currentPage - 1) * REPORTS_PER_PAGE,
+    currentPage * REPORTS_PER_PAGE
+  );
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  // Render pagination items dynamically but limit displayed pages to a reasonable number
+  const renderPaginationItems = () => {
+    let items = [];
+
+    // Show a max of 5 pages in pagination for better UX
+    const maxPageItems = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPageItems / 2));
+    let endPage = startPage + maxPageItems - 1;
+
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = Math.max(1, endPage - maxPageItems + 1);
+    }
+
+    for (let page = startPage; page <= endPage; page++) {
+      items.push(
+        <Pagination.Item
+          key={page}
+          active={page === currentPage}
+          onClick={() => handlePageChange(page)}
+        >
+          {page}
+        </Pagination.Item>
+      );
+    }
+
+    return items;
   };
 
   return (
@@ -158,7 +212,7 @@ const ProcessReports = () => {
           <Card>
             <Card.Header className="d-flex justify-content-between align-items-center">
               <h5>All Processed Reports</h5>
-              <Button onClick={handleGetAllReports} disabled={reportsLoading}>
+              <Button onClick={() => { setCurrentPage(1); handleGetAllReports(); }} disabled={reportsLoading}>
                 {reportsLoading ? (
                   <Spinner size="sm" animation="border" />
                 ) : (
@@ -168,51 +222,74 @@ const ProcessReports = () => {
             </Card.Header>
             <Card.Body>
               {allReports && allReports.length > 0 ? (
-                <Table striped bordered hover responsive>
-                  <thead className="table-dark">
-                    <tr>
-                      <th>Report ID</th>
-                      <th>Bank</th>
-                      <th>Loan Scheme</th>
-                      <th>Fresh TL</th>
-                      <th>OD Enhancement</th>
-                      <th>Takeover</th>
-                      <th>Created At</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allReports.map((report: any) => (
-                      <tr key={report.id}>
-                        <td>{report.id}</td>
-                        <td>{report.bank_name || 'N/A'}</td>
-                        <td>{report.loan_scheme_name || 'N/A'}</td>
-                        <td>{report.is_fresh_term_loan ? '✅' : '❌'}</td>
-                        <td>{report.is_od_enhancement ? '✅' : '❌'}</td>
-                        <td>{report.is_takeover ? '✅' : '❌'}</td>
-                        <td>
-                          {report.created_at
-                            ? new Date(report.created_at).toLocaleDateString()
-                            : 'N/A'}
-                        </td>
-                        <td>
-                          <Button
-                            size="sm"
-                            onClick={() => handleDownload(report.id)}
-                            disabled={downloadMutation.isPending}
-                            variant="outline-primary"
-                          >
-                            {downloadMutation.isPending ? (
-                              <Spinner size="sm" animation="border" />
-                            ) : (
-                              'Download'
-                            )}
-                          </Button>
-                        </td>
+                <>
+                  <Table striped bordered hover responsive>
+                    <thead className="table-dark">
+                      <tr>
+                        <th>Report ID</th>
+                        <th>Bank</th>
+                        <th>Fresh TL</th>
+                        <th>OD Enhancement</th>
+                        <th>Takeover</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </Table>
+                    </thead>
+                    <tbody>
+                      {currentReports?.map((report: any) => (
+                        <tr key={report.id}>
+                          <td>{report.id}</td>
+                          <td>{report.bank_name || 'N/A'}</td>
+                          <td>{report.is_fresh_term_loan ? 'Yes' : 'No'}</td>
+                          <td>{report.is_od_enhancement ? 'Yes' : 'No'}</td>
+                          <td>{report.is_takeover ? 'Yes' : 'No'}</td>
+                          <td>
+                            {report.created_at
+                              ? new Date(report.created_at).toLocaleDateString()
+                              : 'N/A'}
+                          </td>
+                          <td>
+                            <Button
+                              size="sm"
+                              onClick={() => handleDownload(report.id)}
+                              disabled={
+                                downloadingId === report.id && downloadMutation.isPending
+                              }
+                              variant="outline-primary"
+                            >
+                              {downloadingId === report.id && downloadMutation.isPending ? (
+                                <Spinner size="sm" animation="border" />
+                              ) : (
+                                'Download'
+                              )}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+
+                  {/* Pagination controls */}
+                  <Pagination>
+                    <Pagination.First
+                      onClick={() => handlePageChange(1)}
+                      disabled={currentPage === 1}
+                    />
+                    <Pagination.Prev
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    />
+                    {renderPaginationItems()}
+                    <Pagination.Next
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    />
+                    <Pagination.Last
+                      onClick={() => handlePageChange(totalPages)}
+                      disabled={currentPage === totalPages}
+                    />
+                  </Pagination>
+                </>
               ) : (
                 <Alert variant="info">
                   No reports found. Click "Refresh" to load reports.
