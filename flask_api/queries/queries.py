@@ -1,4 +1,3 @@
-# Project Report
 INSERT_PROJECT_REPORT = """
 INSERT INTO systemisers.project_reports (
     user_id, organization_id, company_id,
@@ -9,8 +8,6 @@ INSERT INTO systemisers.project_reports (
           %s, %s, %s, %s, %s, %s, %s, %s)
 RETURNING id;
 """
-
-# Term Loan
 INSERT_TERM_LOAN = """
 INSERT INTO systemisers.project_report_term_loans (
     organization_id, company_id, report_id, loan_amt, emi_start_date,
@@ -23,8 +20,6 @@ INSERT INTO systemisers.project_report_term_loans (
           %s, %s, %s, %s, %s)
 RETURNING id;
 """
-
-# OD/CC Loans
 INSERT_OD_CC = """
 INSERT INTO systemisers.project_report_cc_ods (
     organization_id, company_id, report_id,
@@ -41,7 +36,6 @@ INSERT INTO systemisers.project_report_cc_ods (
 RETURNING id;
 """
 
-# Fresh Loans  
 INSERT_FRESH_LOAN = """
 INSERT INTO systemisers.project_report_new_loans (
     organization_id, company_id, report_id,
@@ -53,8 +47,6 @@ INSERT INTO systemisers.project_report_new_loans (
           %s, %s)
 RETURNING id;
 """
-
-# Assets for Fresh Loans
 INSERT_ASSET = """
 INSERT INTO systemisers.project_report_loan_assets (
     organization_id, company_id, name, type_id, original_value, margin,
@@ -64,8 +56,6 @@ INSERT INTO systemisers.project_report_loan_assets (
           %s, %s, %s, %s, %s)
 RETURNING id;
 """
-
-# Loan Bifurcation
 INSERT_LOAN_BIFURCATION = """
 INSERT INTO systemisers.project_report_loan_bifurcations (
     organization_id, company_id, report_id,
@@ -76,8 +66,6 @@ INSERT INTO systemisers.project_report_loan_bifurcations (
 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 RETURNING id;
 """
-
-# Assumptions
 INSERT_ASSUMPTION = """
 INSERT INTO systemisers.project_report_assumptions (
     organization_id, company_id, report_id,
@@ -93,8 +81,6 @@ INSERT INTO systemisers.project_report_assumptions (
           %s, %s, %s)
 RETURNING id;
 """
-
-# Assumption Details
 INSERT_ASSUMPTION_DETAIL = """
 INSERT INTO systemisers.project_report_assumptions_details (
     assumption_id, assumptions_type_id, financial_year,
@@ -102,8 +88,6 @@ INSERT INTO systemisers.project_report_assumptions_details (
     created_by, created_at, updated_at
 ) VALUES %s
 """
-
-# Takeover Loans
 INSERT_TAKEOVER_LOAN = """
 INSERT INTO systemisers.project_report_takeovers (
     report_id, takeover_type, int_rate, num_installments,
