@@ -12,9 +12,6 @@ from flask import send_file
 
 app = Flask(__name__)
 CORS(app)
-DEFAULT_USER_ID = 180
-DEFAULT_ORG_ID = 174
-DEFAULT_COMPANY_ID = 174
 
 register_routes(app)
 def extract_report_number(report_name):
@@ -98,6 +95,10 @@ def process_single_report():
                 'message': 'Report name is required'
             }), 400
         
+        # Default configuration
+        user_id = 187
+        org_id = 179
+        company_id = 179
         
         print(f"Fetching data for report: {report_name}")
         
@@ -112,7 +113,7 @@ def process_single_report():
         print("Data fetched successfully, inserting report...")
         
         # Insert report
-        report_id = insert_report(json_data, DEFAULT_USER_ID, DEFAULT_ORG_ID, DEFAULT_COMPANY_ID)
+        report_id = insert_report(json_data, user_id, org_id, company_id)
         
         print(f"Report inserted with ID: {report_id}")
         
@@ -208,6 +209,9 @@ def get_all_reports():
 @app.route('/api/process-all-reports', methods=['POST'])
 def process_all_reports():
     try:
+        user_id = 187
+        org_id = 179
+        company_id = 179
 
         # Get distinct report names you want to process
         query = """
@@ -228,8 +232,8 @@ def process_all_reports():
                     failed.append({'report_name': report_name, 'error': 'No data found'})
                     continue
                 
-                report_id = insert_report(json_data, DEFAULT_USER_ID, DEFAULT_ORG_ID, DEFAULT_COMPANY_ID)
-                DEFAULT_ORG_ID = insert_od_cc_enhancement_details(json_data, DEFAULT_ORG_ID, DEFAULT_COMPANY_ID, report_id, DEFAULT_USER_ID)
+                report_id = insert_report(json_data, user_id, org_id, company_id)
+                org_id = insert_od_cc_enhancement_details(json_data, org_id, company_id, report_id, user_id)
                 processed.append({'report_name': report_name, 'report_id': report_id})
             except Exception as e:
                 failed.append({'report_name': report_name, 'error': str(e)})
