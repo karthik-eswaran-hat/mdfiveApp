@@ -109,40 +109,38 @@ def register_routes(app):
     def compare_report_id():
         report_id_1 = request.args.get('report_id_1')
         report_id_2 = request.args.get('report_id_2')
-        
+
         project_report_stage_id_1 = request.args.get('project_report_stage_id_1')
         project_report_stage_id_2 = request.args.get('project_report_stage_id_2')
-        
-        # Get the insert_flag parameter (defaults to False if not provided)
+
         insert_flag = request.args.get('insert_flag', 'false').lower() == 'true'
-        
+
         if not report_id_1 or not report_id_2:
             return jsonify({
                 'success': False,
                 'error': 'Both report_id_1 and report_id_2 are required parameters'
             }), 400
-        
+
         if project_report_stage_id_1 and project_report_stage_id_2:
-            if insert_flag:
-                # Compare and Insert
-                query = f"SELECT * FROM systemisers.compare_flattened_json_from_testsuite_app({report_id_1}, {report_id_2}, TRUE, {project_report_stage_id_1}, {project_report_stage_id_2});"
-            else:
-                # Compare Only
-                query = f"SELECT * FROM systemisers.compare_flattened_json_from_testsuite_app({report_id_1}, {report_id_2}, FALSE, {project_report_stage_id_1}, {project_report_stage_id_2});"
+            query = f"""
+                SELECT * FROM systemisers.compare_flattened_json_from_testsuite_app(
+                    {report_id_1}, {report_id_2}, {'TRUE' if insert_flag else 'FALSE'},
+                    {project_report_stage_id_1}, {project_report_stage_id_2}
+                );
+            """
         else:
-            if insert_flag:
-                # Compare and Insert
-                query = f"SELECT * FROM systemisers.compare_flattened_json_from_testsuite_app({report_id_1}, {report_id_2}, TRUE);"
-            else:
-                # Compare Only
-                query = f"SELECT * FROM systemisers.compare_flattened_json_from_testsuite_app({report_id_1}, {report_id_2}, FALSE);"
-        
+            query = f"""
+                SELECT * FROM systemisers.compare_flattened_json_from_testsuite_app(
+                    {report_id_1}, {report_id_2}, {'TRUE' if insert_flag else 'FALSE'}
+                );
+            """
+
         try:
             with db_cursor() as cur:
                 cur.execute(query)
                 rows = cur.fetchall()
                 result = [dict(row) for row in rows]
-            
+
             return jsonify({
                 'success': True,
                 'data': result,
@@ -155,7 +153,6 @@ def register_routes(app):
                     'differences_found': len(result)
                 }
             })
-            
         except Exception as e:
             return jsonify({
                 'success': False,
