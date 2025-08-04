@@ -6,17 +6,28 @@ from routes import register_routes
 import traceback
 from logic.fetch_json import fetch_json_from_db
 from logic.insert_report import insert_report
-from db_utils.db_utils import select_all, select_one
+from db_utils.db_utils import select_all, select_one, insert_data, update_data
 from logic.report_downloader import download_report
 from flask import send_file
+import re
+from datetime import datetime
+import threading
+import time
+import zipfile
+import os
+import tempfile
 
 app = Flask(__name__)
 CORS(app)
 
 register_routes(app)
+
 def extract_report_number(report_name):
     match = re.match(r"Report_(\d+)", report_name)
     return match.group(1) if match else None
+
+# Global variable to track bulk processing status
+bulk_processing_status = {}
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -64,13 +75,28 @@ def get_valid_report():
             'data': []
         }), 500
 
+def log_report_processing(report_name, status, report_id=None, error_message=None):
+    """Log report processing to database"""
+    try:
+        now = datetime.now()
+        query = """
+        INSERT INTO test_suite.report_processing_log 
+        (original_report_name, inserted_report_id, status, error_message, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        values = (report_name, report_id, status, error_message, now, now)
+        log_id = insert_data(query, values)
+        print(f"Logged report processing: {report_name} -> {status} (Log ID: {log_id})")
+    except Exception as e:
+        print(f"Failed to log report processing: {e}")
+
 @app.route('/api/process-single-report', methods=['POST'])
 def process_single_report():
     """Process a single report by name"""
     try:
         print("=== Processing Single Report ===")
         
-        # Check if request has JSON data
         if not request.is_json:
             return jsonify({
                 'status': 'error',
@@ -105,6 +131,7 @@ def process_single_report():
         # Fetch and process the report
         json_data = fetch_json_from_db(report_name)
         if not json_data:
+            log_report_processing(report_name, 'failed', error_message='No data found')
             return jsonify({
                 'status': 'error',
                 'message': f'No data found for report: {report_name}'
@@ -115,6 +142,7 @@ def process_single_report():
         # Insert report
         report_id = insert_report(json_data, user_id, org_id, company_id)
         
+        log_report_processing(report_name, 'success', report_id)
         print(f"Report inserted with ID: {report_id}")
         
         return jsonify({
@@ -127,13 +155,229 @@ def process_single_report():
         }), 200
         
     except Exception as e:
+        log_report_processing(report_name if 'report_name' in locals() else 'unknown', 'failed', error_message=str(e))
         print(f"Error in process_single_report: {e}")
         print(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'status': 'error',
             'message': str(e)
         }), 500
+
+def process_report_async(report_name, user_id, org_id, company_id, batch_id):
+    """Process a single report asynchronously"""
+    try:
+        print(f"Processing report: {report_name}")
         
+        # Fetch and process the report
+        json_data = fetch_json_from_db(report_name)
+        if not json_data:
+            log_report_processing(report_name, 'failed', error_message='No data found')
+            return {'report_name': report_name, 'status': 'failed', 'error': 'No data found'}
+        
+        # Insert report
+        report_id = insert_report(json_data, user_id, org_id, company_id)
+        
+        log_report_processing(report_name, 'success', report_id)
+        print(f"Successfully processed report: {report_name} -> {report_id}")
+        
+        return {
+            'report_name': report_name,
+            'status': 'success',
+            'report_id': report_id
+        }
+        
+    except Exception as e:
+        error_message = str(e)
+        log_report_processing(report_name, 'failed', error_message=error_message)
+        print(f"Failed to process report {report_name}: {e}")
+        
+        return {
+            'report_name': report_name,
+            'status': 'failed',
+            'error': error_message
+        }
+
+def bulk_process_reports_worker(report_names, batch_id):
+    """Worker function for bulk processing reports"""
+    global bulk_processing_status
+    
+    user_id = 187
+    org_id = 179
+    company_id = 179
+    
+    total_reports = len(report_names)
+    processed = 0
+    results = []
+    
+    bulk_processing_status[batch_id] = {
+        'status': 'processing',
+        'total': total_reports,
+        'processed': 0,
+        'results': []
+    }
+    
+    for report_name in report_names:
+        try:
+            result = process_report_async(report_name, user_id, org_id, company_id, batch_id)
+            results.append(result)
+            processed += 1
+            
+            # Update status
+            bulk_processing_status[batch_id].update({
+                'processed': processed,
+                'results': results
+            })
+            
+            print(f"Progress: {processed}/{total_reports} reports processed")
+            
+        except Exception as e:
+            print(f"Error processing report {report_name}: {e}")
+            results.append({
+                'report_name': report_name,
+                'status': 'failed',
+                'error': str(e)
+            })
+            processed += 1
+            
+            bulk_processing_status[batch_id].update({
+                'processed': processed,
+                'results': results
+            })
+    
+    # Mark as completed
+    bulk_processing_status[batch_id]['status'] = 'completed'
+    print(f"Bulk processing completed for batch {batch_id}")
+
+@app.route('/api/process-bulk-reports', methods=['POST'])
+def process_bulk_reports():
+    """Process multiple reports in bulk"""
+    try:
+        print("=== Processing Bulk Reports ===")
+        
+        if not request.is_json:
+            return jsonify({
+                'status': 'error',
+                'message': 'Request must be JSON'
+            }), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No JSON data received'
+            }), 400
+        
+        report_names = data.get('report_names', [])
+        if not report_names or not isinstance(report_names, list):
+            return jsonify({
+                'status': 'error',
+                'message': 'report_names must be a non-empty list'
+            }), 400
+        
+        # Limit to 50 reports for safety
+        if len(report_names) > 50:
+            return jsonify({
+                'status': 'error',
+                'message': 'Maximum 50 reports allowed per batch'
+            }), 400
+        
+        # Clean and validate report names
+        clean_report_names = [name.strip() for name in report_names if name.strip()]
+        if not clean_report_names:
+            return jsonify({
+                'status': 'error',
+                'message': 'No valid report names provided'
+            }), 400
+        
+        # Generate batch ID
+        batch_id = f"batch_{int(time.time())}_{len(clean_report_names)}"
+        
+        # Start background processing
+        thread = threading.Thread(
+            target=bulk_process_reports_worker,
+            args=(clean_report_names, batch_id)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Bulk processing started for {len(clean_report_names)} reports',
+            'data': {
+                'batch_id': batch_id,
+                'total_reports': len(clean_report_names),
+                'report_names': clean_report_names
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in process_bulk_reports: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/bulk-status/<batch_id>', methods=['GET'])
+def get_bulk_status(batch_id):
+    """Get the status of bulk processing"""
+    global bulk_processing_status
+    
+    if batch_id not in bulk_processing_status:
+        return jsonify({
+            'status': 'error',
+            'message': 'Batch ID not found'
+        }), 404
+    
+    return jsonify({
+        'status': 'success',
+        'data': bulk_processing_status[batch_id]
+    }), 200
+
+@app.route('/api/report-mappings', methods=['GET'])
+def get_report_mappings():
+    """Get all report processing mappings"""
+    try:
+        query = """
+        SELECT 
+            id,
+            original_report_name,
+            inserted_report_id,
+            status,
+            error_message,
+            created_at
+        FROM test_suite.report_processing_log
+        ORDER BY created_at DESC
+        LIMIT 100
+        """
+        
+        mappings = select_all(query)
+        
+        formatted_mappings = []
+        for mapping in mappings:
+            formatted_mappings.append({
+                'id': mapping[0],
+                'original_report_name': mapping[1],
+                'inserted_report_id': mapping[2],
+                'status': mapping[3],
+                'error_message': mapping[4],
+                'created_at': mapping[5].isoformat() if mapping[5] else None
+            })
+        
+        return jsonify({
+            'status': 'success',
+            'data': formatted_mappings,
+            'message': f'Found {len(formatted_mappings)} report mappings'
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_report_mappings: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'data': []
+        }), 500
+
 @app.route("/api/download-report", methods=["POST"])
 def download_report_api():
     data = request.get_json()
@@ -154,6 +398,122 @@ def download_report_api():
 
     return send_file(output_file, as_attachment=True)
 
+@app.route("/api/download-bulk-reports", methods=["POST"])
+def download_bulk_reports_api():
+    """Download multiple reports as a ZIP file"""
+    try:
+        data = request.get_json()
+        report_ids = data.get("report_ids", [])
+        email = data.get("email")
+        password = data.get("password")
+
+        if not report_ids or not isinstance(report_ids, list):
+            return jsonify({"status": "error", "message": "Missing or invalid report_ids"}), 400
+
+        if len(report_ids) > 50:  # Limit bulk downloads
+            return jsonify({"status": "error", "message": "Maximum 50 reports allowed for bulk download"}), 400
+
+        if not email or not password:
+            return jsonify({"status": "error", "message": "Email and password are required"}), 400
+
+        print(f"Bulk downloading {len(report_ids)} reports")
+
+        # Create temporary directory for storing individual PDFs
+        temp_dir = tempfile.mkdtemp()
+        downloaded_files = []
+        failed_downloads = []
+
+        try:
+            # Download each report
+            for report_id in report_ids:
+                try:
+                    print(f"Downloading report ID: {report_id}")
+                    output_file = download_report(report_id, email, password)
+                    
+                    if output_file and os.path.exists(output_file):
+                        # Copy file to temp directory with a better name
+                        filename = f"Report_{report_id}.pdf"
+                        temp_file_path = os.path.join(temp_dir, filename)
+                        
+                        # Copy the file
+                        with open(output_file, 'rb') as src, open(temp_file_path, 'wb') as dst:
+                            dst.write(src.read())
+                        
+                        downloaded_files.append((temp_file_path, filename))
+                        print(f"✅ Successfully downloaded report {report_id}")
+                        
+                        # Clean up original temp file
+                        try:
+                            os.remove(output_file)
+                        except:
+                            pass
+                    else:
+                        failed_downloads.append(report_id)
+                        print(f"❌ Failed to download report {report_id}")
+                        
+                except Exception as e:
+                    print(f"❌ Error downloading report {report_id}: {e}")
+                    failed_downloads.append(report_id)
+
+            if not downloaded_files:
+                return jsonify({
+                    "status": "error", 
+                    "message": "No reports could be downloaded"
+                }), 500
+
+            # Create ZIP file
+            zip_filename = f"BulkReports_{int(time.time())}.zip"
+            zip_path = os.path.join(temp_dir, zip_filename)
+            
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path, filename in downloaded_files:
+                    zipf.write(file_path, filename)
+            
+            print(f"✅ Created ZIP file with {len(downloaded_files)} reports")
+            
+            if failed_downloads:
+                print(f"⚠️ Failed to download {len(failed_downloads)} reports: {failed_downloads}")
+
+            # Set response headers for ZIP download
+            def remove_temp_files():
+                """Clean up temp files after response"""
+                try:
+                    for file_path, _ in downloaded_files:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    if os.path.exists(zip_path):
+                        os.remove(zip_path)
+                    os.rmdir(temp_dir)
+                except Exception as e:
+                    print(f"Error cleaning up temp files: {e}")
+
+            response = send_file(
+                zip_path, 
+                as_attachment=True,
+                download_name=zip_filename,
+                mimetype='application/zip'
+            )
+            
+            # Schedule cleanup after response is sent
+            # Note: In production, you might want to use a more robust cleanup mechanism
+            import atexit
+            atexit.register(remove_temp_files)
+            
+            return response
+
+        except Exception as e:
+            print(f"Error creating ZIP file: {e}")
+            return jsonify({
+                "status": "error", 
+                "message": f"Failed to create ZIP file: {str(e)}"
+            }), 500
+
+    except Exception as e:
+        print(f"Error in download_bulk_reports_api: {e}")
+        return jsonify({
+            "status": "error", 
+            "message": str(e)
+        }), 500
 
 @app.route('/api/reports', methods=['GET'])
 def get_all_reports():
@@ -206,6 +566,8 @@ def get_all_reports():
             'message': str(e),
             'data': []
         }), 500
+
+# Keep all your existing endpoints unchanged
 @app.route('/api/process-all-reports', methods=['POST'])
 def process_all_reports():
     try:
@@ -230,13 +592,16 @@ def process_all_reports():
                 json_data = fetch_json_from_db(report_name)
                 if not json_data:
                     failed.append({'report_name': report_name, 'error': 'No data found'})
+                    log_report_processing(report_name, 'failed', error_message='No data found')
                     continue
                 
                 report_id = insert_report(json_data, user_id, org_id, company_id)
                 org_id = insert_od_cc_enhancement_details(json_data, org_id, company_id, report_id, user_id)
                 processed.append({'report_name': report_name, 'report_id': report_id})
+                log_report_processing(report_name, 'success', report_id)
             except Exception as e:
                 failed.append({'report_name': report_name, 'error': str(e)})
+                log_report_processing(report_name, 'failed', error_message=str(e))
 
         return jsonify({
             'status': 'success',
@@ -327,4 +692,4 @@ def internal_error(error):
     }), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, use_reloader=True) 
+    app.run(debug=True, use_reloader=True)
