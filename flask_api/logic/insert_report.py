@@ -334,7 +334,7 @@ def insert_report(data, user_id, org_id, company_id):
         takeover_details = (data.get("proposed_loan_details") or {}).get("take_over_details") or {}
         
         # Process legacy takeover term loans
-        for tl in takeover_details.get("term_loan_details") or []:
+        for tl in takeover_details or []:
             try:
                 print("DEBUG: Takeover Term loan entry:", tl)
                 
@@ -350,6 +350,8 @@ def insert_report(data, user_id, org_id, company_id):
                     user_id, user_id, now, now,
                     org_id, company_id, is_merged, tl.get("sanction_date"), tl.get("name")
                 ))
+                update_data(UPDATE_TERM_LOAN_TAKEOVER, (takeover_id, now, term_loan_id))
+              
 
                 print(f"Inserted legacy takeover record with ID: {takeover_id}")
 
