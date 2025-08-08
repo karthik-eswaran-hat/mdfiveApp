@@ -21,7 +21,7 @@ def download_report(report_id, email, password, retries=3, delay=5):
             "email": email,
             "password": password
     }
-
+    
     try:
         response = session.post(LOGIN_URL, json=payload, headers=HEADERS)
         response.raise_for_status()
@@ -75,10 +75,9 @@ def download_report_api():
     if not output_file:
         return jsonify({"status": "error", "message": f"Failed to download report {report_id}"}), 500
 
-    # ✅ Pass the full path and proper mimetype + download_name
     return send_file(
         output_file,
         as_attachment=True,
-        download_name=os.path.basename(output_file),  # Ensures file name appears in download
-        mimetype="application/pdf"  # Ensures correct content type
+        download_name=os.path.basename(output_file),  
+        mimetype="application/pdf" 
     )

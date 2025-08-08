@@ -12,7 +12,8 @@ import {
   Nav,
   Tab,
   Badge,
-  Accordion
+  Accordion,
+  Modal
 } from 'react-bootstrap';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import SideBar from './SideBar';
@@ -39,6 +40,13 @@ interface BulkResult {
   error?: string;
 }
 
+// Corrected interface for comparison results based on your API
+interface ComparisonResult {
+  diff_key_path: string;
+  value_1: any;
+  value_2: any;
+}
+
 const REPORTS_PER_PAGE = 10;
 
 const ProcessReports = () => {
@@ -52,6 +60,12 @@ const ProcessReports = () => {
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState('process');
   const [bulkResults, setBulkResults] = useState<BulkResult[]>([]);
+
+  // New state for comparison functionality
+  const [comparisonResults, setComparisonResults] = useState<ComparisonResult[]>([]);
+  const [showComparisonResults, setShowComparisonResults] = useState(false);
+  const [comparisonInfo, setComparisonInfo] = useState<any>(null);
+  const [comparingMappingId, setComparingMappingId] = useState<number | null>(null);
 
   const {
     data: allReports,
@@ -174,6 +188,33 @@ const ProcessReports = () => {
     onMutate: () => setDownloadingAll(true),
     onSettled: () => setDownloadingAll(false)
   });
+  const compareMutation = useMutation({
+    mutationFn: async ({ reportId1, reportId2, insertFlag }: {
+      reportId1: string;
+      reportId2: string;
+      insertFlag: boolean;
+    }) => {
+      const params = new URLSearchParams({
+        report_id_1: reportId1,
+        report_id_2: reportId2,
+        insert_flag: insertFlag.toString()
+      });
+
+      const response = await service({
+        url: `api/reportComparison?${params.toString()}`,
+        method: 'get'
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setComparisonResults(data.data || []);
+      setComparisonInfo(data.comparison_info);
+      setShowComparisonResults(true);
+    },
+    onSettled: () => {
+      setComparingMappingId(null);
+    }
+  });
 
   const pollBulkStatus = async (batchId: string) => {
     const maxPolls = 60; // 5 minutes max (5 second intervals)
@@ -245,6 +286,60 @@ const ProcessReports = () => {
 
   const handleGetReportMappings = () => {
     refetchMappings();
+  };
+
+  // Enhanced function for row-level comparison with better pattern matching
+  const handleCompareMapping = (mapping: ReportMapping, insertFlag: boolean = false) => {
+    if (!mapping.inserted_report_id) {
+      alert('No inserted report ID available for comparison');
+      return;
+    }
+
+    // Log the actual report name for debugging
+    console.log('Trying to extract ID from report name:', mapping.original_report_name);
+
+    // Try multiple patterns to extract report ID from original report name
+    const patterns = [
+      { regex: /Report_(\d+)_/, description: 'Report_1366_latest format' },
+      { regex: /Report_(\d+)$/, description: 'Report_1366 format' },
+      { regex: /Report(\d+)_/, description: 'Report1366_latest format' },
+      { regex: /Report(\d+)$/, description: 'Report1366 format' },
+      { regex: /^(\d+)_/, description: '1366_latest format' },
+      { regex: /^(\d+)$/, description: '1366 format' },
+      { regex: /(\d+)/, description: 'Any number in string' }
+    ];
+
+    let originalReportId = null;
+    let matchedPattern = null;
+
+    for (const pattern of patterns) {
+      const match = mapping.original_report_name.match(pattern.regex);
+      if (match) {
+        originalReportId = match[1];
+        matchedPattern = pattern.description;
+        break;
+      }
+    }
+
+    if (!originalReportId) {
+      const errorMsg = `Could not extract report ID from: "${mapping.original_report_name}"\n\nSupported formats:\n- Report_1366_latest\n- Report_1366\n- 1366_latest\n- 1366\n\nPlease check the console for details.`;
+      alert(errorMsg);
+      console.error('❌ Failed to extract ID from:', mapping.original_report_name);
+      console.error('Tried patterns:', patterns.map(p => p.description));
+      return;
+    }
+
+    console.log('✅ Extracted Report ID:', originalReportId);
+    console.log('✅ Used pattern:', matchedPattern);
+    console.log('✅ Comparing with Inserted Report ID:', mapping.inserted_report_id);
+
+    setComparingMappingId(mapping.id);
+    
+    compareMutation.mutate({
+      reportId1: originalReportId,
+      reportId2: mapping.inserted_report_id.toString(),
+      insertFlag
+    });
   };
 
   // Pagination for main reports
@@ -721,6 +816,7 @@ const ProcessReports = () => {
                                 <th>Inserted Report ID</th>
                                 <th>Status</th>
                                 <th>Created At</th>
+                                <th>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -753,6 +849,44 @@ const ProcessReports = () => {
                                   <td>
                                     {mapping.created_at ? new Date(mapping.created_at).toLocaleDateString() : 'N/A'}
                                   </td>
+                                  <td>
+                                    <div className="d-flex gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="outline-primary"
+                                        onClick={() => handleCompareMapping(mapping, false)}
+                                        disabled={
+                                          !mapping.inserted_report_id || 
+                                          mapping.status !== 'success' ||
+                                          (comparingMappingId === mapping.id && compareMutation.isPending)
+                                        }
+                                        title="Compare original and inserted reports"
+                                      >
+                                        {comparingMappingId === mapping.id && compareMutation.isPending ? (
+                                          <Spinner size="sm" animation="border" />
+                                        ) : (
+                                          'Compare'
+                                        )}
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline-success"
+                                        onClick={() => handleCompareMapping(mapping, true)}
+                                        disabled={
+                                          !mapping.inserted_report_id || 
+                                          mapping.status !== 'success' ||
+                                          (comparingMappingId === mapping.id && compareMutation.isPending)
+                                        }
+                                        title="Compare and insert results to database"
+                                      >
+                                        {comparingMappingId === mapping.id && compareMutation.isPending ? (
+                                          <Spinner size="sm" animation="border" />
+                                        ) : (
+                                          'Compare & Insert'
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -770,7 +904,7 @@ const ProcessReports = () => {
                         </>
                       ) : (
                         <Alert variant="info">
-                          No report mappings found. Click "Refresh"to load processing history.
+                          No report mappings found. Click "Refresh" to load processing history.
                         </Alert>
                       )}
                     </Accordion.Body>
@@ -779,6 +913,119 @@ const ProcessReports = () => {
               </Tab.Pane>
             </Tab.Content>
           </Tab.Container>
+
+          {/* Comparison Results Modal - Updated with correct field names */}
+          <Modal 
+            show={showComparisonResults} 
+            onHide={() => setShowComparisonResults(false)} 
+            size="xl"
+            scrollable
+          >
+            <Modal.Header closeButton>
+              <Modal.Title>
+                📊 Report Comparison Results
+                {comparisonInfo && (
+                  <Badge bg="info" className="ms-2">
+                    {comparisonResults.length} Differences Found
+                  </Badge>
+                )}
+              </Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              {compareMutation.isError && (
+                <Alert variant="danger" className="mb-3">
+                  Error: {compareMutation.error?.message}
+                </Alert>
+              )}
+
+              {comparisonInfo && (
+                <Card className="mb-3">
+                  <Card.Body>
+                    <h6>Comparison Information</h6>
+                    <Row>
+                      <Col md={6}>
+                        <strong>Original Report ID:</strong> {comparisonInfo.report_id_1}<br />
+                        <strong>Project Stage ID 1:</strong> {comparisonInfo.project_report_stage_id_1 || 'N/A'}
+                      </Col>
+                      <Col md={6}>
+                        <strong>Inserted Report ID:</strong> {comparisonInfo.report_id_2}<br />
+                        <strong>Project Stage ID 2:</strong> {comparisonInfo.project_report_stage_id_2 || 'N/A'}
+                      </Col>
+                    </Row>
+                    <Row className="mt-2">
+                      <Col>
+                        <Badge bg={comparisonInfo.insert_flag ? 'success' : 'secondary'}>
+                          {comparisonInfo.insert_flag ? 'Compared & Inserted to Database' : 'Comparison Only'}
+                        </Badge>
+                        <Badge bg="primary" className="ms-2">
+                          Total Differences: {comparisonInfo.differences_found}
+                        </Badge>
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+              )}
+
+              {comparisonResults.length > 0 ? (
+                <div style={{ maxHeight: "500px", overflowY: "auto", border: "1px solid #ccc" }}>
+                  <Table striped bordered hover responsive>
+                    <thead className="table-dark">
+                      <tr>
+                        <th style={{width: '5%'}}>#</th>
+                        <th style={{width: '35%'}}>Difference Path</th>
+                        <th style={{width: '30%'}}>Original Report Value</th>
+                        <th style={{width: '30%'}}>Inserted Report Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonResults.map((result, index) => (
+                        <tr key={index}>
+                          <td>{index + 1}</td>
+                          <td>
+                            <code className="text-primary" style={{fontSize: '0.85rem'}}>
+                              {result.diff_key_path}
+                            </code>
+                          </td>
+                          <td>
+                            <div className="text-break" style={{fontSize: '0.9rem'}}>
+                              {result.value_1 !== null && result.value_1 !== undefined 
+                                ? String(result.value_1) 
+                                : <span className="text-muted">null</span>
+                              }
+                            </div>
+                          </td>
+                          <td>
+                            <div className="text-break" style={{fontSize: '0.9rem'}}>
+                              {result.value_2 !== null && result.value_2 !== undefined 
+                                ? String(result.value_2) 
+                                : <span className="text-muted">null</span>
+                              }
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              ) : (
+                <Alert variant="success">
+                  <h6>No Differences Found!</h6>
+                  <p className="mb-0">The original and inserted reports are identical in structure and values.</p>
+                </Alert>
+              )}
+
+              {compareMutation.isSuccess && comparisonResults.length > 0 && comparisonInfo?.insert_flag && (
+                <Alert variant="success" className="mt-3">
+                  Successfully compared reports and inserted {comparisonResults.length} differences into the database.
+                </Alert>
+              )}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button variant="secondary" onClick={() => setShowComparisonResults(false)}>
+                Close
+              </Button>
+            </Modal.Footer>
+          </Modal>
         </div>
       </Col>
     </Row>

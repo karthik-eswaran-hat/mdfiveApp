@@ -25,15 +25,12 @@ const LoadPage = () => {
     enabled: false,
   })
 
-  // Mutation for loading test data
   const loadDataMutation = useMutation({
     mutationFn: loadTestData,
     onSuccess: (data) => {
       console.log('Load data success:', data)
       setLoadDataSuccess(true)
-      // Hide success message after 5 seconds
       setTimeout(() => setLoadDataSuccess(false), 5000)
-      // Optionally refetch reports after loading data
       if (enabled) {
         refetch()
       }
@@ -46,7 +43,7 @@ const LoadPage = () => {
   const handleGetReport = () => {
     setEnabled(true)
     refetch()
-    setCurrentPage(1) // Reset to first page every time data is refreshed
+    setCurrentPage(1) 
   }
 
   const handleLoadData = () => {
