@@ -25,8 +25,6 @@ register_routes(app)
 def extract_report_number(report_name):
     match = re.match(r"Report_(\d+)", report_name)
     return match.group(1) if match else None
-
-# Global variable to track bulk processing status
 bulk_processing_status = {}
 
 @app.route('/api/health', methods=['GET'])
@@ -120,15 +118,11 @@ def process_single_report():
                 'status': 'error',
                 'message': 'Report name is required'
             }), 400
-        
-        # Default configuration
         user_id = 187
         org_id = 179
         company_id = 179
         
         print(f"Fetching data for report: {report_name}")
-        
-        # Fetch and process the report
         json_data = fetch_json_from_db(report_name)
         if not json_data:
             log_report_processing(report_name, 'failed', error_message='No data found')
@@ -138,8 +132,6 @@ def process_single_report():
             }), 404
         
         print("Data fetched successfully, inserting report...")
-        
-        # Insert report
         report_id = insert_report(json_data, user_id, org_id, company_id)
         
         log_report_processing(report_name, 'success', report_id)
@@ -167,14 +159,11 @@ def process_report_async(report_name, user_id, org_id, company_id, batch_id):
     """Process a single report asynchronously"""
     try:
         print(f"Processing report: {report_name}")
-        
-        # Fetch and process the report
         json_data = fetch_json_from_db(report_name)
         if not json_data:
             log_report_processing(report_name, 'failed', error_message='No data found')
             return {'report_name': report_name, 'status': 'failed', 'error': 'No data found'}
         
-        # Insert report
         report_id = insert_report(json_data, user_id, org_id, company_id)
         
         log_report_processing(report_name, 'success', report_id)
@@ -222,7 +211,6 @@ def bulk_process_reports_worker(report_names, batch_id):
             results.append(result)
             processed += 1
             
-            # Update status
             bulk_processing_status[batch_id].update({
                 'processed': processed,
                 'results': results
@@ -244,7 +232,6 @@ def bulk_process_reports_worker(report_names, batch_id):
                 'results': results
             })
     
-    # Mark as completed
     bulk_processing_status[batch_id]['status'] = 'completed'
     print(f"Bulk processing completed for batch {batch_id}")
 
@@ -274,14 +261,12 @@ def process_bulk_reports():
                 'message': 'report_names must be a non-empty list'
             }), 400
         
-        # Limit to 50 reports for safety
         if len(report_names) > 50:
             return jsonify({
                 'status': 'error',
                 'message': 'Maximum 50 reports allowed per batch'
             }), 400
         
-        # Clean and validate report names
         clean_report_names = [name.strip() for name in report_names if name.strip()]
         if not clean_report_names:
             return jsonify({
@@ -289,10 +274,8 @@ def process_bulk_reports():
                 'message': 'No valid report names provided'
             }), 400
         
-        # Generate batch ID
         batch_id = f"batch_{int(time.time())}_{len(clean_report_names)}"
         
-        # Start background processing
         thread = threading.Thread(
             target=bulk_process_reports_worker,
             args=(clean_report_names, batch_id)
@@ -387,8 +370,6 @@ def download_report_api():
         return jsonify({"status": "error", "message": "Missing report_id"}), 400
 
     print(f"Downloading report ID: {report_id}")
-
-    # ✅ Hardcoded QA login credentials
     email = "bharath@gmail.com"
     password = "Testing@12345"
 
@@ -410,7 +391,7 @@ def download_bulk_reports_api():
         if not report_ids or not isinstance(report_ids, list):
             return jsonify({"status": "error", "message": "Missing or invalid report_ids"}), 400
 
-        if len(report_ids) > 50:  # Limit bulk downloads
+        if len(report_ids) > 50:  
             return jsonify({"status": "error", "message": "Maximum 50 reports allowed for bulk download"}), 400
 
         if not email or not password:
@@ -418,41 +399,38 @@ def download_bulk_reports_api():
 
         print(f"Bulk downloading {len(report_ids)} reports")
 
-        # Create temporary directory for storing individual PDFs
         temp_dir = tempfile.mkdtemp()
         downloaded_files = []
         failed_downloads = []
 
         try:
-            # Download each report
             for report_id in report_ids:
                 try:
                     print(f"Downloading report ID: {report_id}")
                     output_file = download_report(report_id, email, password)
                     
                     if output_file and os.path.exists(output_file):
-                        # Copy file to temp directory with a better name
+                        
                         filename = f"Report_{report_id}.pdf"
                         temp_file_path = os.path.join(temp_dir, filename)
                         
-                        # Copy the file
+                    
                         with open(output_file, 'rb') as src, open(temp_file_path, 'wb') as dst:
                             dst.write(src.read())
                         
                         downloaded_files.append((temp_file_path, filename))
-                        print(f"✅ Successfully downloaded report {report_id}")
-                        
-                        # Clean up original temp file
+                        print(f"Successfully downloaded report {report_id}")
+                         
                         try:
                             os.remove(output_file)
                         except:
                             pass
                     else:
                         failed_downloads.append(report_id)
-                        print(f"❌ Failed to download report {report_id}")
+                        print(f"Failed to download report {report_id}")
                         
                 except Exception as e:
-                    print(f"❌ Error downloading report {report_id}: {e}")
+                    print(f"Error downloading report {report_id}: {e}")
                     failed_downloads.append(report_id)
 
             if not downloaded_files:
@@ -461,7 +439,6 @@ def download_bulk_reports_api():
                     "message": "No reports could be downloaded"
                 }), 500
 
-            # Create ZIP file
             zip_filename = f"BulkReports_{int(time.time())}.zip"
             zip_path = os.path.join(temp_dir, zip_filename)
             
@@ -469,12 +446,10 @@ def download_bulk_reports_api():
                 for file_path, filename in downloaded_files:
                     zipf.write(file_path, filename)
             
-            print(f"✅ Created ZIP file with {len(downloaded_files)} reports")
+            print(f"Created ZIP file with {len(downloaded_files)} reports")
             
             if failed_downloads:
                 print(f"⚠️ Failed to download {len(failed_downloads)} reports: {failed_downloads}")
-
-            # Set response headers for ZIP download
             def remove_temp_files():
                 """Clean up temp files after response"""
                 try:
@@ -493,9 +468,6 @@ def download_bulk_reports_api():
                 download_name=zip_filename,
                 mimetype='application/zip'
             )
-            
-            # Schedule cleanup after response is sent
-            # Note: In production, you might want to use a more robust cleanup mechanism
             import atexit
             atexit.register(remove_temp_files)
             
@@ -566,8 +538,6 @@ def get_all_reports():
             'message': str(e),
             'data': []
         }), 500
-
-# Keep all your existing endpoints unchanged
 @app.route('/api/process-all-reports', methods=['POST'])
 def process_all_reports():
     try:
@@ -575,14 +545,13 @@ def process_all_reports():
         org_id = 179
         company_id = 179
 
-        # Get distinct report names you want to process
         query = """
         SELECT DISTINCT report_name
         FROM test_suite.json_report_test_data
         ORDER BY report_name DESC
         LIMIT 50
         """
-        report_names = select_all(query)  # Returns list of tuples [('Report_1366_latest',), ...]
+        report_names = select_all(query)  
         
         processed = []
         failed = []
