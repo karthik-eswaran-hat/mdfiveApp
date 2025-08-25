@@ -543,7 +543,7 @@ def process_all_reports():
     try:
         user_id = 187
         org_id = 179
-        company_id = 179
+        company_id = 179 
 
         query = """
         SELECT DISTINCT report_name
