@@ -59,6 +59,12 @@ function SideBar() {
         </Nav.Item>
         
         <Nav.Item>
+          <Nav.Link eventKey="automation" as={Link} to="/automation/signin">
+            🤖 Automation Sign-In
+          </Nav.Link>
+        </Nav.Item>
+        
+        <Nav.Item>
           <Nav.Link eventKey="help" as={Link} to="/dashboard">
             ❓ Help
           </Nav.Link>

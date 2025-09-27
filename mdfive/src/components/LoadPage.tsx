@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { useState } from "react"
 import { Button, Table, Spinner, Alert, Pagination, Row, Col } from "react-bootstrap"
-import { getValidReport, loadTestData } from "../api/project_report" // Import the new function
+import { getValidReport, loadTestData } from "../api/project_report"
 import SideBar from "./SideBar"
 
 const LoadPage = () => {
