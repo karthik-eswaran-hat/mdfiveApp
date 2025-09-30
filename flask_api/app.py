@@ -176,6 +176,195 @@ def download_report_endpoint():
             'message': str(e)
         }), 500
 
+<<<<<<< HEAD
+=======
+@app.route('/api/bulk-status/<batch_id>', methods=['GET'])
+def get_bulk_status(batch_id):
+    """Get the status of bulk processing"""
+    global bulk_processing_status
+    
+    if batch_id not in bulk_processing_status:
+        return jsonify({
+            'status': 'error',
+            'message': 'Batch ID not found'
+        }), 404
+    
+    return jsonify({
+        'status': 'success',
+        'data': bulk_processing_status[batch_id]
+    }), 200
+
+@app.route('/api/report-mappings', methods=['GET'])
+def get_report_mappings():
+    """Get all report processing mappings"""
+    try:
+        query = """
+        SELECT 
+            id,
+            original_report_name,
+            inserted_report_id,
+            status,
+            error_message,
+            created_at
+        FROM test_suite.report_processing_log
+        ORDER BY created_at DESC
+        LIMIT 100
+        """
+
+        mappings = select_all(query)
+        
+        formatted_mappings = []
+        for mapping in mappings:
+            formatted_mappings.append({
+                'id': mapping[0],
+                'original_report_name': mapping[1],
+                'inserted_report_id': mapping[2],
+                'status': mapping[3],
+                'error_message': mapping[4],
+                'created_at': mapping[5].isoformat() if mapping[5] else None
+            })
+        
+        return jsonify({
+            'status': 'success',
+            'data': formatted_mappings,
+            'message': f'Found {len(formatted_mappings)} report mappings'
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_report_mappings: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'data': []
+        }), 500
+
+@app.route("/api/download-report", methods=["POST"])
+def download_report_api():
+    data = request.get_json()
+    report_id = data.get("report_id")
+
+    if not report_id:
+        return jsonify({"status": "error", "message": "Missing report_id"}), 400
+
+    print(f"Downloading report ID: {report_id}")
+    email = "bharath@gmail.com"
+    password = "Testing@12345"
+
+    output_file = download_report(report_id, email, password)
+    if not output_file:
+        return jsonify({"status": "error", "message": f"Failed to download report {report_id}"}), 500
+
+    return send_file(output_file, as_attachment=True)
+
+@app.route("/api/download-bulk-reports", methods=["POST"])
+def download_bulk_reports_api():
+    """Download multiple reports as a ZIP file"""
+    try:
+        data = request.get_json()
+        report_ids = data.get("report_ids", [])
+        email = data.get("email")
+        password = data.get("password")
+
+        if not report_ids or not isinstance(report_ids, list):
+            return jsonify({"status": "error", "message": "Missing or invalid report_ids"}), 400
+
+        if len(report_ids) > 50:  
+            return jsonify({"status": "error", "message": "Maximum 50 reports allowed for bulk download"}), 400
+
+        if not email or not password:
+            return jsonify({"status": "error", "message": "Email and password are required"}), 400
+
+        print(f"Bulk downloading {len(report_ids)} reports")
+
+        temp_dir = tempfile.mkdtemp()
+        downloaded_files = []
+        failed_downloads = []
+
+        try:
+            for report_id in report_ids:
+                try:
+                    print(f"Downloading report ID: {report_id}")
+                    output_file = download_report(report_id, email, password)
+                    
+                    if output_file and os.path.exists(output_file):
+                        
+                        filename = f"Report_{report_id}.pdf"
+                        temp_file_path = os.path.join(temp_dir, filename)
+                        
+                    
+                        with open(output_file, 'rb') as src, open(temp_file_path, 'wb') as dst:
+                            dst.write(src.read())
+                        
+                        downloaded_files.append((temp_file_path, filename))
+                        print(f"Successfully downloaded report {report_id}")
+                         
+                        try:
+                            os.remove(output_file)
+                        except:
+                            pass
+                    else:
+                        failed_downloads.append(report_id)
+                        print(f"Failed to download report {report_id}")
+                        
+                except Exception as e:
+                    print(f"Error downloading report {report_id}: {e}")
+                    failed_downloads.append(report_id)
+
+            if not downloaded_files:
+                return jsonify({
+                    "status": "error", 
+                    "message": "No reports could be downloaded"
+                }), 500
+
+            zip_filename = f"BulkReports_{int(time.time())}.zip"
+            zip_path = os.path.join(temp_dir, zip_filename)
+            
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path, filename in downloaded_files:
+                    zipf.write(file_path, filename)
+            
+            print(f"Created ZIP file with {len(downloaded_files)} reports")
+            
+            if failed_downloads:
+                print(f"⚠️ Failed to download {len(failed_downloads)} reports: {failed_downloads}")
+            def remove_temp_files():
+                """Clean up temp files after response"""
+                try:
+                    for file_path, _ in downloaded_files:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    if os.path.exists(zip_path):
+                        os.remove(zip_path)
+                    os.rmdir(temp_dir)
+                except Exception as e:
+                    print(f"Error cleaning up temp files: {e}")
+
+            response = send_file(
+                zip_path, 
+                as_attachment=True,
+                download_name=zip_filename,
+                mimetype='application/zip'
+            )
+            import atexit
+            atexit.register(remove_temp_files)
+            
+            return response
+
+        except Exception as e:
+            print(f"Error creating ZIP file: {e}")
+            return jsonify({
+                "status": "error", 
+                "message": f"Failed to create ZIP file: {str(e)}"
+            }), 500
+
+    except Exception as e:
+        print(f"Error in download_bulk_reports_api: {e}")
+        return jsonify({
+            "status": "error", 
+            "message": str(e)
+        }), 500
+
+>>>>>>> edeb852 (NEW UI)
 @app.route('/api/reports', methods=['GET'])
 def get_all_reports():
     """Get all processed reports"""

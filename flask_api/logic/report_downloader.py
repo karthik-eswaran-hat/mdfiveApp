@@ -15,6 +15,13 @@ def download_report(report_id, email, password, output_file=None, retries=3, del
     print("🔐 Logging in...")
     payload = { "email": email, "password": password }
 
+<<<<<<< HEAD
+=======
+    payload = {
+            "email": email,
+            "password": password
+    }
+>>>>>>> edeb852 (NEW UI)
     try:
         response = session.post(LOGIN_URL, json=payload, headers=HEADERS)
         response.raise_for_status()
