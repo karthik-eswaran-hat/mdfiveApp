@@ -7,6 +7,7 @@ function SideBar() {
   const [activeKey, setActiveKey] = useState("dashboard");
 
   const handleSelect = (eventKey) => {
+    
     setActiveKey(eventKey);
     // Add your navigation logic here
     console.log("Selected:", eventKey);
