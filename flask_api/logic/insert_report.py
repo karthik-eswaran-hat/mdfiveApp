@@ -23,24 +23,29 @@ def format_od_limits(od_limits):
 
 def format_od_limits_as_jsonb_string(od_limits):
     """
-    Format od_limits to match the exact JSONB string format in record 1454:
-    "{\"2024\":42600000,\"2025\":32000000}"
+    Format od_limits into a JSONB-compatible escaped string like:
+    "{\"2023\":{\"amount\":50000000,\"outstanding\":0},\"2024\":{\"amount\":50000000,\"outstanding\":42600000}}"
     """
     if not od_limits:
         return "{}"
     
-    # Create dictionary with string keys and numeric values
-    od_limits_dict = {str(limit["year"]): limit["limit"] for limit in od_limits}
+    # Create dictionary with year as key and nested amount/outstanding
+    od_limits_dict = {
+        str(limit["year"]): {
+            "amount": limit["amount"],
+            "outstanding": limit["outstanding"]
+        }
+        for limit in od_limits
+    }
     
-    # Create the exact JSON string format with escaped quotes
-    json_pairs = []
-    for year, limit in od_limits_dict.items():
-        json_pairs.append(f'\\"{year}\\":{limit}')
+    # Convert to compact JSON string (no spaces)
+    json_str = json.dumps(od_limits_dict, separators=(",", ":"))
     
-    # Join pairs and wrap in quotes with escaped braces
-    json_string = '"{' + ','.join(json_pairs) + '}"'
+    # Escape quotes to match DB JSONB string representation
+    escaped_json_str = '"' + json_str.replace('"', '\\"') + '"'
     
-    return json_string
+    return escaped_json_str
+
 
 def update_loan_bifurcation_status(report_id):
     """Update loan bifurcation status like in Rails"""
