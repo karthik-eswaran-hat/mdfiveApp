@@ -7,6 +7,7 @@ import SignIn from './components/Automation/SignIn';
 import AutomationFolder from './components/Automation/Folder';
 import SignUp from './components/Automation/SignUp';
 import Forgot from './components/Automation/Forgot';
+import FullProcess from './components/FullProcess';
 
 
 const App = () => {
@@ -20,6 +21,7 @@ const App = () => {
       <Route path="/automation/signin" element={<SignIn />} />
       <Route path="/automation/signup" element={<SignUp />} />
       <Route path="/automation/forgot" element={<Forgot />} />
+      <Route path="/Process" element={<FullProcess />} />
     </Routes>
   )
 }

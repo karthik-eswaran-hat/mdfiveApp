@@ -15,32 +15,39 @@ import {
   FaChevronDown,
   FaChevronRight,
   FaTh,
-  FaBars,
-  FaArrowLeft
+  FaBars
 } from 'react-icons/fa';
 
-type FolderKey = 'automation';
+type FolderKey = 'automation' | 'testcaseGenerator';
 
 function SideBar() {
   const location = useLocation();
   const [activeKey, setActiveKey] = useState<string>("dashboard");
   const [expandedFolders, setExpandedFolders] = useState<Record<FolderKey, boolean>>({
     automation: false,
+    testcaseGenerator: false,
   });
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (location.pathname.startsWith('/automation')) {
       setExpandedFolders(prev => ({ ...prev, automation: true }));
-      if (location.pathname === '/automation/signin') {
-        setActiveKey('automation-signin');
-      } else if (location.pathname === '/automation/signup') {
-        setActiveKey('automation-signup');
-      } else if (location.pathname === '/automation/forgot') {
-        setActiveKey('automation-forgot');
-      } else {
-        setActiveKey('automation-root');
-      }
+      setActiveKey(
+        location.pathname === '/automation/signin' ? 'automation-signin' :
+        location.pathname === '/automation/signup' ? 'automation-signup' :
+        location.pathname === '/automation/forgot' ? 'automation-forgot' :
+        'automation-root'
+      );
+    } else if (location.pathname === '/Process') {
+      setExpandedFolders(prev => ({ ...prev, automation: true }));
+      setActiveKey('Process');
+    } else if (location.pathname.startsWith('/testcase_generator')) {
+      setExpandedFolders(prev => ({ ...prev, testcaseGenerator: true }));
+      setActiveKey(
+        location.pathname === '/testcase_generator/create' ? 'testcase-create' :
+        location.pathname === '/testcase_generator/history' ? 'testcase-history' :
+        'testcase-root'
+      );
     } else {
       const pathToKey: Record<string, string> = {
         '/dashboard': 'dashboard',
@@ -50,7 +57,11 @@ function SideBar() {
       };
       const key = pathToKey[location.pathname] || 'dashboard';
       setActiveKey(key);
-      setExpandedFolders(prev => ({ ...prev, automation: false }));
+      setExpandedFolders(prev => ({
+        ...prev,
+        automation: false,
+        testcaseGenerator: false,
+      }));
     }
   }, [location]);
 
@@ -69,26 +80,6 @@ function SideBar() {
     setIsCollapsed(!isCollapsed);
   };
 
-  const renderBackButton = (folderKey: FolderKey) => (
-    <Nav.Link
-      onClick={() => toggleFolder(folderKey)}
-      className="sidebar-back-button d-flex align-items-center"
-      style={{
-        cursor: 'pointer',
-        padding: '6px 16px',
-        borderRadius: '6px',
-        margin: '0 8px 8px 8px',
-        backgroundColor: '#f1f3f5',
-        color: '#495057',
-        fontWeight: '500',
-        fontSize: '13px',
-        userSelect: 'none',
-      }}
-      title="Back"
-    >
-      <FaArrowLeft size={14} className="me-2" /> Back
-    </Nav.Link>
-  );
 
   interface FolderItemProps {
     folderKey: FolderKey;
@@ -143,7 +134,6 @@ function SideBar() {
         </Nav.Item>
         {isExpanded && !isCollapsed && (
           <div className="ps-4 mb-3">
-            {renderBackButton(folderKey)}
             {children}
           </div>
         )}
@@ -164,7 +154,7 @@ function SideBar() {
     
     return (
       <Nav.Item className="mb-1">
-          <Nav.Link 
+        <Nav.Link 
           eventKey={eventKey} 
           as={Link} 
           to={to}
@@ -270,40 +260,11 @@ function SideBar() {
             </div>
           )}
           
-          <FileItem 
-            eventKey="dashboard" 
-            icon={FaHome} 
-            label="Dashboard" 
-            to="/dashboard" 
-          />
-          
-          <FileItem 
-            eventKey="profile" 
-            icon={FaUser} 
-            label="Reports Viewer" 
-            to="/" 
-          />
-          
-          <FileItem 
-            eventKey="projects" 
-            icon={FaFolder} 
-            label="Projects" 
-            to="/processed_reports" 
-          />
-          
-          <FileItem 
-            eventKey="settings" 
-            icon={FaChartLine} 
-            label="Report Comparison" 
-            to="/ReportComparison" 
-          />
-          
-          <FileItem 
-            eventKey="reports" 
-            icon={FaChartBar} 
-            label="Reports" 
-            to="/dashboard" 
-          />
+          <FileItem eventKey="dashboard" icon={FaHome} label="Dashboard" to="/dashboard" />
+          <FileItem eventKey="profile" icon={FaUser} label="Reports Viewer" to="/" />
+          <FileItem eventKey="projects" icon={FaFolder} label="Projects" to="/processed_reports" />
+          <FileItem eventKey="settings" icon={FaChartLine} label="Report Comparison" to="/ReportComparison" />
+          <FileItem eventKey="reports" icon={FaChartBar} label="Reports" to="/dashboard" />
 
           {/* Automation Section */}
           {!isCollapsed && (
@@ -325,42 +286,19 @@ function SideBar() {
             </>
           )}
           
-          <FolderItem 
-            folderKey="automation" 
-            icon={FaRobot} 
-            label="Automation Tools"
-          >
-            <FileItem 
-              eventKey="automation-root" 
-              icon={FaTh} 
-              label="Overview" 
-              to="/automation" 
-              isChild={true}
-            />
-            
-            <FileItem 
-              eventKey="automation-signin" 
-              icon={FaSignInAlt} 
-              label="Sign-In" 
-              to="/automation/signin" 
-              isChild={true}
-            />
-            
-            <FileItem 
-              eventKey="automation-signup" 
-              icon={FaUserPlus} 
-              label="Sign-Up" 
-              to="/automation/signup" 
-              isChild={true}
-            />
-            
-            <FileItem 
-              eventKey="automation-forgot" 
-              icon={FaKey} 
-              label="Forgot Password" 
-              to="/automation/forgot" 
-              isChild={true}
-            />
+          <FolderItem folderKey="automation" icon={FaRobot} label="Automation Tools">
+            <FileItem eventKey="automation-root" icon={FaTh} label="SSF" to="/automation" isChild={true} />
+            {/* <FileItem eventKey="automation-signin" icon={FaSignInAlt} label="Sign-In" to="/automation/signin" isChild={true} />
+            <FileItem eventKey="automation-signup" icon={FaUserPlus} label="Sign-Up" to="/automation/signup" isChild={true} />
+            <FileItem eventKey="automation-forgot" icon={FaKey} label="Forgot Password" to="/automation/forgot" isChild={true} /> */}
+            <FileItem eventKey="Process" icon={FaBars} label="Full Process" to="/Process" isChild={true} />
+          </FolderItem>
+
+          {/* Testcase Generator Section */}
+          <FolderItem folderKey="testcaseGenerator" icon={FaChartBar} label="Testcase Generator">
+            <FileItem eventKey="testcase-root" icon={FaTh} label="Overview" to="/testcase_generator" isChild={true} />
+            <FileItem eventKey="testcase-create" icon={FaUserPlus} label="Create Testcases" to="/testcase_generator/create" isChild={true} />
+            <FileItem eventKey="testcase-history" icon={FaFolder} label="Testcase History" to="/testcase_generator/history" isChild={true} />
           </FolderItem>
           
           {/* Support Section */}
@@ -383,12 +321,7 @@ function SideBar() {
             </>
           )}
           
-          <FileItem 
-            eventKey="help" 
-            icon={FaQuestionCircle} 
-            label="Help & Support" 
-            to="/dashboard" 
-          />
+          <FileItem eventKey="help" icon={FaQuestionCircle} label="Help & Support" to="/dashboard" />
         </Nav>
       </div>
       
@@ -414,11 +347,6 @@ function SideBar() {
         .sidebar-folder-item:hover {
           background-color: rgba(0, 0, 0, 0.06) !important;
           color: #495057 !important;
-        }
-
-        .sidebar-back-button:hover {
-          background-color: #e9ecef;
-          color: #0d6efd;
         }
       `}</style>
     </div>
