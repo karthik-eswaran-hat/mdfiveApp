@@ -67,8 +67,8 @@ def download_report_api():
         return jsonify({"status": "error", "message": "Missing report_id"}), 400
 
     print(f"=== Downloading Report ===\nDownloading report ID: {report_id}")
-    email = "super_admin@systemisers.com"
-    password = "Admin@123456"
+    email = "bharath@gmail.com"
+    password = "Testing@12345"
 
     output_file = download_report(report_id, email, password)
 
