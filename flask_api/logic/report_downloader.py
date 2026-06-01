@@ -31,6 +31,7 @@ def download_report(report_id, email, password, retries=3, delay=5):
         return None
 
     print("Logged in successfully!")
+    session.get('https://qa-api.systemisers.in/api/v1/company/429/switch_company')
     report_url = REPORT_URL_TEMPLATE.format(report_id=report_id)
 
     os.makedirs("output_reports", exist_ok=True)

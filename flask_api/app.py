@@ -118,9 +118,9 @@ def process_single_report():
                 'status': 'error',
                 'message': 'Report name is required'
             }), 400
-        user_id = 187
-        org_id = 179
-        company_id = 179
+        user_id = 1
+        org_id =  219
+        company_id = 429
         
         print(f"Fetching data for report: {report_name}")
         json_data = fetch_json_from_db(report_name)
@@ -190,9 +190,9 @@ def bulk_process_reports_worker(report_names, batch_id):
     """Worker function for bulk processing reports"""
     global bulk_processing_status
     
-    user_id = 187
-    org_id = 179
-    company_id = 179
+    user_id = 1
+    org_id =  219
+    company_id = 429
     
     total_reports = len(report_names)
     processed = 0
@@ -541,9 +541,9 @@ def get_all_reports():
 @app.route('/api/process-all-reports', methods=['POST'])
 def process_all_reports():
     try:
-        user_id = 187
-        org_id = 179
-        company_id = 179 
+        user_id = 1
+        org_id =  219
+        company_id = 429 
 
         query = """
         SELECT DISTINCT report_name

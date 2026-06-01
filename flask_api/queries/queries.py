@@ -74,10 +74,20 @@ INSERT INTO systemisers.project_report_loan_bifurcations (
     financial_year, bank_od, rel_party_loan, other_loan,
     is_current, total_loan,
     created_by, updated_by, created_at, updated_at,
-    term_loans, business_loans
-) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    term_loans, business_loans, other_current_liabilities
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 RETURNING id;
 """
+
+INSERT_FIXED_ASSET = """
+INSERT INTO systemisers.project_report_fixed_assets_validations (
+    organization_id, company_id, report_id, financial_year,
+    depreciation_closing_wdv, balance_sheet_closing_wdv, land, capital_work_in_progress,
+    created_by, updated_by, created_at, updated_at
+) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+RETURNING id;
+"""
+
 INSERT_ASSUMPTION = """
 INSERT INTO systemisers.project_report_assumptions (
     organization_id, company_id, report_id,
