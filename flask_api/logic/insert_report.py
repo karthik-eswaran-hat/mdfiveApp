@@ -1,4 +1,5 @@
 import json
+import pdb
 from datetime import datetime
 from db_utils.db_utils import insert_data, insert_many, select_one, select_all, update_data, update_many
 from queries.queries import (
@@ -15,6 +16,7 @@ installment_type_map = {"month": 0, "year": 1}
 amount_type_map = {"inr": 0, "lakhs": 1}
 takeover_type_map = {"od_cc": 0, "term_loan": 1}
 od_type = { "renewal": 0, "fresh": 1, "enhancement": 2 }
+odcc_status_map = {"open": 0, "closed": 1}
 
 def format_od_limits(od_limits):
     # Convert to the exact format matching record 1454: values as numbers, compact JSON
@@ -27,23 +29,10 @@ def format_od_limits_as_jsonb_string(od_limits):
     """
     if not od_limits:
         return "{}"
-    
-    # Create dictionary with year as key and nested amount/outstanding
-    od_limits_dict = {
-        str(limit["year"]): {
-            "amount": limit["amount"],
-            "outstanding": limit["outstanding"]
-        }
-        for limit in od_limits
-    }
-    
-    # Convert to compact JSON string (no spaces)
+
+    od_limits_dict = format_od_limits(od_limits)
     json_str = json.dumps(od_limits_dict, separators=(",", ":"))
-    
-    # Escape quotes to match DB JSONB string representation
-    escaped_json_str = '"' + json_str.replace('"', '\\"') + '"'
-    
-    return escaped_json_str
+    return '"' + json_str.replace('"', '\\"') + '"'
 
 
 def update_loan_bifurcation_status(report_id):
@@ -188,9 +177,10 @@ def insert_report(data, user_id, org_id, company_id):
             try:
                 od_limits = od.get("od_limits", [])
                 od_limits_json = format_od_limits_as_jsonb_string(od_limits)
-
-                amount_type_os = amount_type_map.get(str(od.get("amount_type_os", "")).lower(), 0)
-                amount_type_od_cc = amount_type_map.get(str(od.get("amount_type_od_cc", "")).lower(), 0)
+                amount_type_os = amount_type_map.get(str(od.get("amount_type_os", "inr")).lower(), 0)
+                amount_type_od_cc = amount_type_map.get(str(od.get("amount_type_od_cc", "inr")).lower(), 0)
+                odcc_status = odcc_status_map.get(str(od.get("odcc_status", "open")).lower(), 0)
+                closing_year = od.get("closing_year") or 0
 
                 bank_name = od.get("bank", {}).get("name")
                 if not bank_name:
@@ -218,8 +208,13 @@ def insert_report(data, user_id, org_id, company_id):
                     od_limits_json,
                     None,  # takeover_id
                     amount_type_os,
-                    amount_type_od_cc
+                    amount_type_od_cc,
+                    odcc_status,
+                    closing_year,
                 ))
+
+                if not od_cc_id:
+                    raise RuntimeError("insert_data returned no id")
 
                 inserted_od_cc.append({
                     'id': od_cc_id,
@@ -227,7 +222,7 @@ def insert_report(data, user_id, org_id, company_id):
                     'data': od
                 })
 
-                print(f"✅ Inserted OD/CC loan: {od.get('name', f'OD_{idx}')}")
+                print(f"✅ Inserted OD/CC loan: {od.get('name', f'OD_{idx}')}, ID: {od_cc_id}")
             
             except KeyError as e:
                 print(f"⚠️ Missing required field for OD/CC loan at index {idx}: {e}")

@@ -27,12 +27,14 @@ INSERT INTO systemisers.project_report_cc_ods (
     created_by, updated_by, created_at, updated_at,
     bank_id, int_rate, name, sanction_date,
     od_limits_json, takeover_id,
-    amount_type_os, amount_type_od_cc
+    amount_type_os, amount_type_od_cc,
+    odcc_status, closing_year
 ) VALUES (%s, %s, %s,
           %s, %s, %s,
           %s, %s, %s, %s,
           %s, %s, %s, %s,
-          %s, %s, %s, %s)
+          %s, %s, %s, %s,
+          %s, %s)
 RETURNING id;
 """
 
