@@ -1,12 +1,11 @@
 import json
 from datetime import datetime
-import pdb
 from db_utils.db_utils import insert_data, insert_many, select_one, select_all, update_data, update_many
 from queries.queries import (
     INSERT_PROJECT_REPORT, INSERT_TERM_LOAN, INSERT_OD_CC, INSERT_FRESH_LOAN,
     INSERT_ASSET, INSERT_ASSUMPTION, INSERT_ASSUMPTION_DETAIL, INSERT_LOAN_BIFURCATION,
     INSERT_TAKEOVER_LOAN, UPDATE_TERM_LOAN_TAKEOVER, UPDATE_OD_CC_TAKEOVER,
-    UPDATE_LOAN_BIFURCATION_CURRENT, INSERT_OD_CC_ENHANCEMENT
+    UPDATE_LOAN_BIFURCATION_CURRENT, INSERT_OD_CC_ENHANCEMENT, INSERT_FIXED_ASSET,
 )
 
 itr_version_map = {"ITR1": 1, "ITR2": 2, "ITR3": 3, "ITR4": 4, "ITR5": 5, "ITR6": 6, "ITR7": 7}
@@ -466,21 +465,66 @@ def insert_report(data, user_id, org_id, company_id):
         insert_od_cc_enhancement_details(data, org_id, company_id, report_id, user_id)
     except Exception as e:
         print(f"Error processing OD/CC enhancement details: {e}")
+     
+    # --- STEP 6.0: Fixed assets validations ---
+    print("STEP 6.0: Processing fixed_assets_details...")
+    try:
+        fixed_assets_raw = data.get("fixed_assets_details") or []
+        if isinstance(fixed_assets_raw, dict):
+            fixed_assets_details = fixed_assets_raw.get("fixed_assets_details") or []
+        elif isinstance(fixed_assets_raw, list):
+            fixed_assets_details = fixed_assets_raw
+        else:
+            fixed_assets_details = []
 
+        for asset in fixed_assets_details:
+            try:
+                insert_data(INSERT_FIXED_ASSET, (
+                    org_id, company_id, report_id, asset.get("year"),
+                    float(asset.get("depreciation_closing_wdv", 0)),
+                    float(asset.get("balance_sheet_closing_wdv", 0)),
+                    float(asset.get("land", 0)),
+                    float(asset.get("capital_work_in_progress", 0)),
+                    user_id, user_id, now, now,
+                ))
+            except Exception as e:
+                print(f"Failed to insert fixed asset row: {e}")
+
+    except Exception as e:
+        print(f"Error processing fixed_assets_details: {e}")
+
+    
     # --- STEP 6: Loan Bifurcation ---
     print("STEP 6: Processing loan bifurcation...")
     try:
-        bifurcation_list = data.get("loan_bifurcation_details") or []
+        bifurcation_raw = data.get("loan_bifurcation") or []
+        if isinstance(bifurcation_raw, dict):
+            bifurcation_list = bifurcation_raw.get("loan_bifurcation") or []
+        elif isinstance(bifurcation_raw, list):
+            bifurcation_list = bifurcation_raw
+        else:
+            bifurcation_list = []
+
         for bifur in bifurcation_list:
             try:
+                rel_party_loan = bifur.get("related_party_loan")
+                if rel_party_loan is None:
+                    rel_party_loan = bifur.get("rel_party_loan")
+
                 insert_data(
                     INSERT_LOAN_BIFURCATION,
                     (
                         org_id, company_id, report_id,
-                        bifur.get("financial_year"), bifur.get("bank_od"), bifur.get("rel_party_loan"), bifur.get("other_loan"),
-                        False, bifur.get("total_loan"),
+                        bifur.get("financial_year"),
+                        bifur.get("bank_od"),
+                        rel_party_loan,
+                        bifur.get("other_loan"),
+                        bifur.get("is_current", False),
+                        bifur.get("total_loan"),
                         user_id, user_id, now, now,
-                        bifur.get("term_loans"), bifur.get("business_loans")
+                        bifur.get("term_loans"),
+                        bifur.get("business_loans"),
+                        bifur.get("other_current_liabilities"),
                     )
                 )
             except Exception as e:

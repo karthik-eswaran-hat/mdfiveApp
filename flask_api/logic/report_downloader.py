@@ -31,6 +31,7 @@ def download_report(report_id, email, password, retries=3, delay=5):
         return None
 
     print("Logged in successfully!")
+    session.get('https://qa-api.systemisers.in/api/v1/company/429/switch_company')
     report_url = REPORT_URL_TEMPLATE.format(report_id=report_id)
 
     os.makedirs("output_reports", exist_ok=True)
@@ -66,8 +67,8 @@ def download_report_api():
         return jsonify({"status": "error", "message": "Missing report_id"}), 400
 
     print(f"=== Downloading Report ===\nDownloading report ID: {report_id}")
-    email = "bharath@gmail.com"
-    password = "Testing@12345"
+    email = "super_admin@systemisers.com"
+    password = "Admin@123456"
 
     output_file = download_report(report_id, email, password)
 
