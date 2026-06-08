@@ -118,9 +118,9 @@ def process_single_report():
                 'status': 'error',
                 'message': 'Report name is required'
             }), 400
-        user_id = 1
-        org_id =  219
-        company_id = 429
+        user_id = 287
+        org_id =  226
+        company_id = 438
         
         print(f"Fetching data for report: {report_name}")
         json_data = fetch_json_from_db(report_name)
@@ -190,9 +190,9 @@ def bulk_process_reports_worker(report_names, batch_id):
     """Worker function for bulk processing reports"""
     global bulk_processing_status
     
-    user_id = 1
-    org_id =  219
-    company_id = 429
+    user_id = 287
+    org_id =  226
+    company_id = 438
     
     total_reports = len(report_names)
     processed = 0
@@ -370,7 +370,7 @@ def download_report_api():
         return jsonify({"status": "error", "message": "Missing report_id"}), 400
 
     print(f"Downloading report ID: {report_id}")
-    email = "bharath@gmail.com"
+    email = "mdfive@gmail.com"
     password = "Testing@12345"
 
     output_file = download_report(report_id, email, password)
@@ -541,9 +541,9 @@ def get_all_reports():
 @app.route('/api/process-all-reports', methods=['POST'])
 def process_all_reports():
     try:
-        user_id = 1
-        org_id =  219
-        company_id = 429 
+        user_id = 287
+        org_id =  226
+        company_id = 438
 
         query = """
         SELECT DISTINCT report_name

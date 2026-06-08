@@ -286,3 +286,90 @@ BEGIN
     WHERE merged.value_1 IS DISTINCT FROM merged.value_2;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Update branch for the reports
+
+update test_suite.report_json_executions set branch = 'june_2026_branch' where base_report_id in 
+(3683,3686,3689,3692,3693,3699,3701,3702,3704,3709,3719,3717,3715,3714,3713,3711,3707,3705,3760,3761,3796,3778,3764,3765,3766,3767,3809,3808,3807,3806);
+
+
+-- Generate md five report comparison summary for branch 
+
+\COPY (
+WITH combos AS (
+    SELECT
+        td.report_id AS base_report_id,
+        TRIM(BOTH ', ' FROM concat_ws(', ',
+            CASE WHEN is_fresh_term_loan = 1 THEN 'Fresh Term Loan' END,
+            CASE WHEN is_od_enhancement = 1 THEN 'OD Enhancement' END,
+            CASE WHEN is_takeover = 1 THEN 'Takeover' END,
+            CASE WHEN is_od_renewal = 1 THEN 'OD Renewal' END,
+            CASE WHEN is_od_fresh = 1 THEN 'OD Fresh' END
+        )) AS combo_name
+    FROM (
+        SELECT
+            td.report_id,
+            MAX(CASE WHEN fj.key_path = 'what_you_want_details.is_fresh_term_loan' AND fj.value::boolean THEN 1 ELSE 0 END) AS is_fresh_term_loan,
+            MAX(CASE WHEN fj.key_path = 'what_you_want_details.is_od_enhancement' AND fj.value::boolean THEN 1 ELSE 0 END) AS is_od_enhancement,
+            MAX(CASE WHEN fj.key_path = 'what_you_want_details.is_takeover' AND fj.value::boolean THEN 1 ELSE 0 END) AS is_takeover,
+            MAX(CASE WHEN fj.key_path = 'what_you_want_details.is_od_renewal' AND fj.value::boolean THEN 1 ELSE 0 END) AS is_od_renewal,
+            MAX(CASE WHEN fj.key_path = 'what_you_want_details.is_od_fresh' AND fj.value::boolean THEN 1 ELSE 0 END) AS is_od_fresh
+        FROM test_suite.json_report_test_data_app td
+        JOIN LATERAL systemisers.flatten_json_full(td.user_input_data) fj(key_path, value) ON true
+        WHERE fj.key_path ~ '^what_you_want_details\.is_'
+        GROUP BY td.report_id
+    ) td
+),
+split_paths AS (
+    SELECT
+        re.base_report_id,
+        TRIM(unnest(string_to_array(re.mismatch_paths #>> '{}', ','))) AS json_path
+    FROM test_suite.report_json_executions re
+    WHERE re.mismatch_paths IS NOT NULL
+      AND re.branch = 'june_2026_branch'
+)
+SELECT
+    c.combo_name,
+    sp.json_path,
+    COUNT(*) AS failed_count
+FROM split_paths sp
+JOIN combos c ON c.base_report_id = sp.base_report_id
+GROUP BY c.combo_name, sp.json_path
+ORDER BY c.combo_name, failed_count DESC
+) TO '/Users/karthik_eswaran/Desktop/june_2026_branch.csv' WITH CSV HEADER;
+
+
+
+-- update the user_input_data and project_report_json for the json_report_test_data_app with the latest report_json from the project_report_stages
+UPDATE test_suite.json_report_test_data_app td
+SET
+    user_input_data = s.user_input_json,
+    project_report_json = s.report_json,
+    stage_id = s.stage_id
+FROM (
+    SELECT DISTINCT ON (td.report_id)
+        td.id AS test_data_id,
+        test_suite.get_user_input_details_from_report(td.report_id) AS user_input_json,
+        s.report_json,
+        s.id AS stage_id
+    FROM test_suite.json_report_test_data_app td
+    JOIN (
+        SELECT DISTINCT ON (base_report_id)
+            base_report_id,
+            new_report_id
+        FROM test_suite.report_json_executions
+        ORDER BY base_report_id, created_at DESC
+    ) rje
+        ON td.report_id = rje.base_report_id
+    JOIN (
+        SELECT DISTINCT ON (report_id)
+            report_id,
+            id,
+            report_json
+        FROM systemisers.project_report_stages
+        ORDER BY report_id, id DESC
+    ) s
+        ON s.report_id = rje.new_report_id
+    ORDER BY td.report_id
+) s
+WHERE td.id = s.test_data_id;
