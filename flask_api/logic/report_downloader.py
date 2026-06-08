@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+import pdb
 from flask import Blueprint, request, jsonify, send_file
 
 download_api = Blueprint('download_api', __name__)
@@ -29,9 +30,8 @@ def download_report(report_id, email, password, retries=3, delay=5):
         if e.response is not None:
             print("Response text:", e.response.text)
         return None
-
     print("Logged in successfully!")
-    session.get('https://qa-api.systemisers.in/api/v1/company/429/switch_company')
+    session.get('https://qa-api.systemisers.in/api/v1/company/438/switch_company')
     report_url = REPORT_URL_TEMPLATE.format(report_id=report_id)
 
     os.makedirs("output_reports", exist_ok=True)
@@ -67,7 +67,7 @@ def download_report_api():
         return jsonify({"status": "error", "message": "Missing report_id"}), 400
 
     print(f"=== Downloading Report ===\nDownloading report ID: {report_id}")
-    email = "bharath@gmail.com"
+    email = "mdfive@gmail.com"
     password = "Testing@12345"
 
     output_file = download_report(report_id, email, password)

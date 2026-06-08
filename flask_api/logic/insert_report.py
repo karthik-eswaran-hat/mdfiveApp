@@ -1,5 +1,4 @@
 import json
-import pdb
 from datetime import datetime
 from db_utils.db_utils import insert_data, insert_many, select_one, select_all, update_data, update_many
 from queries.queries import (
@@ -73,7 +72,11 @@ def insert_od_cc_enhancement_details(data, org_id, company_id, report_id, user_i
     
     for enhancement in enhancement_list:
         try:
-            sanction_date = datetime.strptime(enhancement["sanction_date"], "%Y-%m-%d").date()
+            sanction_date_raw = enhancement.get("sanction_date")
+            sanction_date = (
+                datetime.strptime(sanction_date_raw, "%Y-%m-%d").date()
+                if sanction_date_raw else None
+            )
             amount_type = amount_type_map.get(enhancement.get("amount_type", "inr").lower(), 0)
             values = (
                 enhancement["amount"],
@@ -85,6 +88,7 @@ def insert_od_cc_enhancement_details(data, org_id, company_id, report_id, user_i
                 enhancement["name"], sanction_date,
                 amount_type
             )
+            
             print("INSERTING WITH VALUES:", values) 
             enhancement_id = insert_data(INSERT_OD_CC_ENHANCEMENT, values)
            
